@@ -11,21 +11,35 @@ env/
 
 # Local config & secrets
 .env
+.env.*
+!.env.example
 
 # Instance data (database, uploaded proctor snapshots)
 instance/
 *.db
+*.db-journal
 *.sqlite3
+*.sqlite3-journal
 
 # Logs
-logs/*.log
+logs/
+*.log
 
 # Test / coverage
 .pytest_cache/
 .coverage
 htmlcov/
+_wtest*
+_verify*
+_sa*.py
 
 # Editor
 .vscode/
 .idea/
 .DS_Store
+
+# Superseded single-file version, kept locally only
+legacy_flask_backup/
+
+# Deploy tooling
+.vercel/

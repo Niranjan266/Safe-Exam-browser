@@ -11,6 +11,7 @@ from ..extensions import db
 from ..models import Exam, Submission, Violation, ProctorSnapshot, User
 from ..services import get_active_submission, upsert_answer
 from .. import proctoring
+from .. import framestore
 from .. import settings as settings_store
 
 api_bp = Blueprint("api", __name__, url_prefix="/api")
@@ -130,18 +131,7 @@ def upload_snapshot(exam_id):
     if not file:
         return jsonify({"ok": False, "error": "no file"}), 400
 
-    ts = datetime.utcnow().strftime("%Y%m%d%H%M%S%f")
-    fname = secure_filename(f"sub{sub.id}_{ts}.jpg")
-    path = os.path.join(current_app.config["SNAPSHOT_DIR"], fname)
-    file.save(path)
-
-    snap = ProctorSnapshot(
-        submission_id=sub.id,
-        student_id=sub.student_id,
-        exam_id=sub.exam_id,
-        filename=fname,
-    )
-    db.session.add(snap)
+    framestore.save_snapshot(sub, file)
     db.session.commit()
     return jsonify({"ok": True})
 
@@ -159,8 +149,7 @@ def live_frame(exam_id):
     file = request.files.get("frame")
     if not file:
         return jsonify({"ok": False, "error": "no file"}), 400
-    fname = secure_filename(f"sub{sub.id}_{kind}.jpg")
-    file.save(os.path.join(current_app.config["LIVE_DIR"], fname))
+    framestore.save_live_frame(sub.id, kind, file)
     # A live frame is also a presence signal.
     sub.last_heartbeat = datetime.utcnow()
     db.session.commit()
@@ -218,7 +207,6 @@ def live_wall_feed():
     already pushing — nothing is sent to the student, so watching is silent.
     """
     _admin_only()
-    live_dir = current_app.config["LIVE_DIR"]
     exam_id = request.args.get("exam_id", type=int)
 
     query = (
@@ -233,10 +221,14 @@ def live_wall_feed():
     if exam_id:
         query = query.filter(Submission.exam_id == exam_id)
 
+    records = query.order_by(Submission.started_at.desc()).all()
+    # One lookup for every attempt rather than two filesystem/DB hits each.
+    present = framestore.live_frame_ids([s.id for s, _, _, _ in records])
+
     rows = []
-    for sub, username, full_name, exam_title in query.order_by(Submission.started_at.desc()).all():
-        has_screen = os.path.exists(os.path.join(live_dir, f"sub{sub.id}_screen.jpg"))
-        has_cam = os.path.exists(os.path.join(live_dir, f"sub{sub.id}_cam.jpg"))
+    for sub, username, full_name, exam_title in records:
+        has_screen = (sub.id, "screen") in present
+        has_cam = (sub.id, "cam") in present
         rows.append(
             {
                 "submission_id": sub.id,

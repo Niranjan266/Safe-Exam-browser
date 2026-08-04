@@ -31,18 +31,31 @@ def create_app(config_name=None):
     )
     app.config.from_object(get_config(config_name))
 
+    _configure_database(app)
     _ensure_dirs(app)
+    _register_host_guard(app)
     _init_extensions(app)
     _register_blueprints(app)
     _register_errorhandlers(app)
     _register_context(app)
     _register_cli(app)
 
-    with app.app_context():
-        db.create_all()
-        _auto_migrate()
+    # Creating tables costs a round trip per table. Against a remote database
+    # (Turso) that is wasted work on every serverless cold start, so it can be
+    # turned off with SEB_INIT_DB=0 once the schema is in place.
+    if _bool_env("SEB_INIT_DB", default=True):
+        with app.app_context():
+            db.create_all()
+            _auto_migrate()
 
     return app
+
+
+def _bool_env(name, default=False):
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
 
 
 def _auto_migrate():
@@ -82,11 +95,60 @@ def _auto_migrate():
     db.session.commit()
 
 
+def _configure_database(app):
+    """Point SQLAlchemy at Turso (libSQL) when credentials are present."""
+    from . import turso
+
+    if not turso.is_enabled():
+        return
+    turso.register()
+    app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite+libsql://"
+    app.config["SQLALCHEMY_ENGINE_OPTIONS"] = turso.engine_options()
+
+
+def _register_host_guard(app):
+    """
+    Reject requests whose Host header is not in ALLOWED_HOSTS.
+
+    This is the Flask counterpart to Django's ALLOWED_HOSTS: it blocks
+    Host-header spoofing, which otherwise lets an attacker poison absolute
+    URLs the app generates (password-reset links, redirects, cached pages).
+    An empty allowlist disables the check, which is the default in development.
+    """
+    from flask import request, abort
+
+    @app.before_request
+    def _check_host():
+        allowed = app.config.get("ALLOWED_HOSTS") or ()
+        if not allowed:
+            return None
+        # Strip any port before comparing: "example.com:443" -> "example.com".
+        host = (request.host or "").split(":")[0].lower()
+        if host in allowed:
+            return None
+        # Support one level of wildcard, e.g. ".vercel.app" or "*.vercel.app".
+        for entry in allowed:
+            suffix = entry[1:] if entry.startswith("*") else entry
+            if suffix.startswith(".") and host.endswith(suffix):
+                return None
+        abort(400, description=f"Host '{host}' is not an allowed host.")
+
+
 def _ensure_dirs(app):
-    os.makedirs(app.instance_path, exist_ok=True)
-    os.makedirs(app.config["SNAPSHOT_DIR"], exist_ok=True)
-    os.makedirs(app.config["LIVE_DIR"], exist_ok=True)
-    os.makedirs(os.path.join(PROJECT_ROOT, "logs"), exist_ok=True)
+    """
+    Create the writable directories the app expects.
+
+    On a read-only/serverless filesystem this is a no-op: frames and snapshots
+    are stored in the database instead (FRAME_STORAGE = "db").
+    """
+    try:
+        os.makedirs(app.instance_path, exist_ok=True)
+        os.makedirs(app.config["SNAPSHOT_DIR"], exist_ok=True)
+        os.makedirs(app.config["LIVE_DIR"], exist_ok=True)
+        os.makedirs(os.path.join(PROJECT_ROOT, "logs"), exist_ok=True)
+    except OSError:
+        if app.config.get("FRAME_STORAGE") != "db":
+            raise
 
 
 def _init_extensions(app):

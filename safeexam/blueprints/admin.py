@@ -33,6 +33,7 @@ from ..forms import (
 from ..decorators import admin_required
 from ..audit import log_action
 from .. import proctoring
+from .. import framestore
 from .. import settings as settings_store
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
@@ -686,7 +687,10 @@ def _redirect_back():
 @admin_required
 def snapshot_image(snap_id):
     snap = db.session.get(ProctorSnapshot, snap_id) or abort(404)
-    return send_from_directory(current_app.config["SNAPSHOT_DIR"], snap.filename)
+    data = framestore.load_snapshot(snap)
+    if data is None:
+        abort(404)
+    return Response(data, mimetype="image/jpeg")
 
 
 # ======================= Live screen monitoring =======================
@@ -729,11 +733,10 @@ def live_view(sub_id):
 def live_frame_image(sub_id, kind):
     if kind not in ("screen", "cam"):
         abort(404)
-    fname = f"sub{sub_id}_{kind}.jpg"
-    path = os.path.join(current_app.config["LIVE_DIR"], fname)
-    if not os.path.exists(path):
+    data = framestore.load_live_frame(sub_id, kind)
+    if data is None:
         abort(404)
-    resp = send_from_directory(current_app.config["LIVE_DIR"], fname)
+    resp = Response(data, mimetype="image/jpeg")
     resp.headers["Cache-Control"] = "no-store, max-age=0"
     return resp
 

@@ -254,6 +254,9 @@ class Submission(db.Model):
     snapshots = db.relationship(
         "ProctorSnapshot", backref="submission", lazy=True, cascade="all, delete-orphan"
     )
+    live_frames = db.relationship(
+        "LiveFrame", backref="submission", lazy=True, cascade="all, delete-orphan"
+    )
 
     # --- timing ---
     def deadline(self):
@@ -332,6 +335,35 @@ class ProctorSnapshot(db.Model):
     filename = db.Column(db.String(255), nullable=False)
     captured_at = db.Column(db.DateTime, default=datetime.utcnow)
     flagged = db.Column(db.Boolean, default=False)
+    # When the host has no writable disk (e.g. Vercel), the JPEG is stored here
+    # instead of on the filesystem. Exactly one of `filename` / `image` is used.
+    image = db.Column(db.LargeBinary, nullable=True)
+
+
+class LiveFrame(db.Model):
+    """
+    The most recent live screen / webcam frame for an in-progress attempt.
+
+    One row per (submission, kind), overwritten continuously while the
+    candidate is writing. Holding frames in the database rather than on disk
+    lets the proctor's live wall work on serverless hosts, where the process
+    that receives a frame is not the process that later serves it.
+    """
+
+    __tablename__ = "live_frames"
+
+    id = db.Column(db.Integer, primary_key=True)
+    submission_id = db.Column(db.Integer, db.ForeignKey("submissions.id"), nullable=False)
+    kind = db.Column(db.String(10), nullable=False)  # 'screen' or 'cam'
+    image = db.Column(db.LargeBinary, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        db.UniqueConstraint("submission_id", "kind", name="uq_live_frame_kind"),
+    )
+
+    def __repr__(self):
+        return f"<LiveFrame sub={self.submission_id} {self.kind}>"
 
 
 class AppSetting(db.Model):

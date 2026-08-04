@@ -18,17 +18,48 @@ def _bool(value, default=False):
     return str(value).strip().lower() in {"1", "true", "yes", "on"}
 
 
+def _csv(value, default=()):
+    """Parse a comma-separated environment value into a tuple."""
+    if not value:
+        return tuple(default)
+    return tuple(part.strip().lower() for part in value.split(",") if part.strip())
+
+
+def _turso_enabled():
+    return bool(
+        (os.environ.get("SEB_TURSO_URL") or os.environ.get("TURSO_DATABASE_URL"))
+        and (os.environ.get("SEB_TURSO_TOKEN") or os.environ.get("TURSO_AUTH_TOKEN"))
+    )
+
+
 class Config:
     # --- Core ---
     SECRET_KEY = os.environ.get("SEB_SECRET_KEY", "dev-only-change-me-in-production")
 
     # --- Database ---
-    # Override with SEB_DATABASE_URI (e.g. postgresql://... or a custom sqlite path).
-    SQLALCHEMY_DATABASE_URI = os.environ.get(
-        "SEB_DATABASE_URI",
-        "sqlite:///" + os.path.join(INSTANCE_DIR, "safeexam.db"),
-    )
+    # Priority: Turso (libSQL) -> SEB_DATABASE_URI -> local SQLite file.
+    # Turso is used in production/serverless, where a local SQLite file would
+    # not persist between requests.
+    if _turso_enabled():
+        SQLALCHEMY_DATABASE_URI = "sqlite+libsql://"
+    else:
+        SQLALCHEMY_DATABASE_URI = os.environ.get(
+            "SEB_DATABASE_URI",
+            "sqlite:///" + os.path.join(INSTANCE_DIR, "safeexam.db"),
+        )
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+
+    # --- Allowed hosts (the Flask equivalent of Django's ALLOWED_HOSTS) ---
+    # Requests whose Host header is not listed are rejected with 400.
+    # Empty tuple = allow any host (the default in development).
+    ALLOWED_HOSTS = _csv(os.environ.get("SEB_ALLOWED_HOSTS"))
+
+    # --- Where live frames / webcam snapshots are stored ---
+    # "db"   - as blobs in the database (required on read-only/serverless hosts)
+    # "disk" - as JPEG files under instance/ (faster; needs a writable disk)
+    FRAME_STORAGE = os.environ.get(
+        "SEB_FRAME_STORAGE", "db" if _turso_enabled() else "disk"
+    ).strip().lower()
 
     # --- Sessions / cookies ---
     PERMANENT_SESSION_LIFETIME = timedelta(hours=8)
@@ -67,6 +98,17 @@ class DevelopmentConfig(Config):
 class ProductionConfig(Config):
     DEBUG = False
     SESSION_COOKIE_SECURE = _bool(os.environ.get("SEB_SECURE_COOKIES"), True)
+    # In production the allowlist defaults to the deployed hostnames; override
+    # with SEB_ALLOWED_HOSTS. Localhost stays allowed so health checks work.
+    ALLOWED_HOSTS = _csv(
+        os.environ.get("SEB_ALLOWED_HOSTS"),
+        default=(
+            "exam.niranjand.in",
+            "safe-exam-browser.vercel.app",
+            "localhost",
+            "127.0.0.1",
+        ),
+    )
 
 
 class TestingConfig(Config):
