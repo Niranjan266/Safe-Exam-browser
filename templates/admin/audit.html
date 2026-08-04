@@ -1,0 +1,30 @@
+{% extends "dash_base.html" %}
+{% from "partials/_macros.html" import icon %}
+{% block title %}Audit log — {{ APP_NAME }}{% endblock %}
+{% block page_title %}Audit log{% endblock %}
+{% block dash %}
+<div class="card">
+  <div class="section-title">{{ icon('log') }} Recent activity (latest 300)</div>
+  {% if entries %}
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Time (UTC)</th><th>Actor</th><th>Action</th><th>Target</th><th>Detail</th><th>IP</th></tr></thead>
+      <tbody>
+        {% for e in entries %}
+        <tr>
+          <td class="muted">{{ e.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+          <td>{{ e.actor_name or '—' }}</td>
+          <td><span class="badge badge-muted">{{ e.action }}</span></td>
+          <td class="muted">{{ e.target or '—' }}</td>
+          <td class="muted">{{ e.detail or '—' }}</td>
+          <td class="muted">{{ e.ip or '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="empty">No activity recorded yet.</p>
+  {% endif %}
+</div>
+{% endblock %}

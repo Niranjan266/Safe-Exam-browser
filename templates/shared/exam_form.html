@@ -1,0 +1,52 @@
+{% extends "dash_base.html" %}
+{% from "partials/_macros.html" import icon %}
+{% block title %}{{ 'Edit exam' if exam else 'New exam' }} — {{ APP_NAME }}{% endblock %}
+{% block page_title %}{{ 'Edit exam' if exam else 'New exam' }}{% endblock %}
+{% block topbar_actions %}<a class="btn btn-ghost" href="{{ url_for(ns ~ '.exams') }}">{{ icon('chevron') }} Back</a>{% endblock %}
+{% block dash %}
+<div class="card" style="max-width:780px;">
+  <form method="POST" novalidate>
+    {{ form.hidden_tag() }}
+    <div class="form-group">
+      {{ form.title.label }} {{ form.title(placeholder="e.g. Data Structures — Midterm") }}
+      {% for e in form.title.errors %}<div class="field-error">{{ e }}</div>{% endfor %}
+    </div>
+    <div class="form-group">
+      {{ form.class_id.label }} {{ form.class_id() }}
+      <div class="helper-text">Optional — link this exam to a class / subject.</div>
+    </div>
+    <div class="form-group">
+      {{ form.description.label }} {{ form.description(rows=3, placeholder="Optional description shown to candidates") }}
+    </div>
+    <div class="two-col">
+      <div class="form-group">
+        {{ form.duration.label }} {{ form.duration(placeholder="Minutes") }}
+        {% for e in form.duration.errors %}<div class="field-error">{{ e }}</div>{% endfor %}
+      </div>
+      <div class="form-group">
+        {{ form.pass_mark.label }} {{ form.pass_mark(placeholder="System default") }}
+        {% for e in form.pass_mark.errors %}<div class="field-error">{{ e }}</div>{% endfor %}
+      </div>
+    </div>
+    <div class="two-col">
+      <div class="form-group">
+        {{ form.max_violations.label }} {{ form.max_violations(placeholder="System default") }}
+        <div class="helper-text">Leave blank to use the global limit ({{ policy.max_violations }}).</div>
+        {% for e in form.max_violations.errors %}<div class="field-error">{{ e }}</div>{% endfor %}
+      </div>
+      <div class="form-group">
+        <label>Options</label>
+        <div class="checkbox-row" style="margin-bottom:8px;">{{ form.shuffle_questions() }} {{ form.shuffle_questions.label }}</div>
+        <div class="checkbox-row">{{ form.is_published() }} {{ form.is_published.label }}</div>
+      </div>
+    </div>
+    <div class="two-col">
+      <div class="form-group">{{ form.available_from.label }} {{ form.available_from() }}
+        <div class="helper-text">Optional — when candidates may begin.</div></div>
+      <div class="form-group">{{ form.available_until.label }} {{ form.available_until() }}
+        {% for e in form.available_until.errors %}<div class="field-error">{{ e }}</div>{% endfor %}</div>
+    </div>
+    <button type="submit">{{ icon('check') }} {{ 'Save changes' if exam else 'Create exam' }}</button>
+  </form>
+</div>
+{% endblock %}

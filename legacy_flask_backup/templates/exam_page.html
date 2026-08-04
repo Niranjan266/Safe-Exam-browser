@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{{ exam.title }} - SafeExam</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+
+    <style>
+        body {
+            user-select: none;
+        }
+
+        .exam-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .timer-box {
+            background: #1e293b;
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-weight: bold;
+        }
+
+        .violation-box {
+            background: #ef4444;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 13px;
+        }
+
+        .question-card {
+            background: #1e293b;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+        }
+
+        .option-label {
+            display: block;
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            cursor: pointer;
+            background: #0f172a;
+            border: 1px solid #334155;
+            transition: 0.2s;
+        }
+
+        .option-label:hover {
+            border-color: #3b82f6;
+        }
+
+        .submit-btn {
+            margin-top: 20px;
+            width: 100%;
+        }
+
+        #warningBox {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0.8);
+    background: #ef4444;
+    padding: 25px 40px;
+    border-radius: 14px;
+    font-size: 18px;
+    font-weight: bold;
+    display: none;
+    z-index: 9999;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+    text-align: center;
+    transition: 0.3s ease;
+}
+
+#warningBox.show {
+    display: block;
+    transform: translate(-50%, -50%) scale(1);
+}
+
+        .question-card {
+    opacity: 0;
+    transform: translateY(15px);
+    animation: fadeSlide 0.6s ease forwards;
+}
+
+.question-card:nth-child(1) { animation-delay: 0.1s; }
+.question-card:nth-child(2) { animation-delay: 0.2s; }
+.question-card:nth-child(3) { animation-delay: 0.3s; }
+.question-card:nth-child(4) { animation-delay: 0.4s; }
+
+@keyframes fadeSlide {
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+    </style>
+</head>
+
+<body>
+
+<div class="layout">
+<div class="main">
+
+    <div class="card exam-header">
+        <h2>{{ exam.title }}</h2>
+
+        <div style="display:flex;gap:15px;align-items:center;">
+            <div class="timer-box">
+                ⏱ <span id="timer"></span>
+            </div>
+
+            <div class="violation-box">
+                ⚠ <span id="violationCount">0</span> / 3
+            </div>
+        </div>
+    </div>
+
+    <form method="POST" id="examForm">
+
+        {% for question in questions %}
+        <div class="question-card">
+            <p><strong>{{ loop.index }}. {{ question.question }}</strong></p>
+
+            <label class="option-label">
+                <input type="radio" name="{{ question.id }}" value="A">
+                {{ question.option_a }}
+            </label>
+
+            <label class="option-label">
+                <input type="radio" name="{{ question.id }}" value="B">
+                {{ question.option_b }}
+            </label>
+
+            <label class="option-label">
+                <input type="radio" name="{{ question.id }}" value="C">
+                {{ question.option_c }}
+            </label>
+
+            <label class="option-label">
+                <input type="radio" name="{{ question.id }}" value="D">
+                {{ question.option_d }}
+            </label>
+        </div>
+        {% endfor %}
+
+        <button class="submit-btn" type="submit">Submit Exam</button>
+    </form>
+
+</div>
+</div>
+
+<div id="warningBox"></div>
+
+<script>
+
+/* ================= TIMER ================= */
+
+let duration = {{ exam.duration }} * 60;
+let timerDisplay = document.getElementById("timer");
+let form = document.getElementById("examForm");
+
+let countdown = setInterval(function() {
+
+    let minutes = Math.floor(duration / 60);
+    let seconds = duration % 60;
+
+    timerDisplay.textContent =
+        minutes + ":" + (seconds < 10 ? "0" : "") + seconds;
+
+    duration--;
+
+    if (duration < 0) {
+        clearInterval(countdown);
+        form.submit();
+    }
+
+}, 1000);
+
+
+/* ================= ADMIN LOCK CHECK ================= */
+
+setInterval(function(){
+    fetch("/check_lock/{{ exam.id }}")
+    .then(res => res.json())
+    .then(data => {
+        if (data.locked) {
+            showWarning("Exam Locked by Admin!");
+            setTimeout(() => form.submit(), 1500);
+        }
+    });
+}, 3000);
+
+
+/* ================= VIOLATION SYSTEM ================= */
+
+let violationCounter = 0;
+let maxViolations = 3;
+
+function showWarning(message) {
+
+    let box = document.getElementById("warningBox");
+    box.innerText = message;
+
+    box.classList.add("show");
+
+    setTimeout(() => {
+        box.classList.remove("show");
+    }, 1500);
+}
+
+
+function recordViolation(type) {
+
+    violationCounter++;
+    document.getElementById("violationCount").innerText = violationCounter;
+
+    fetch("/log_violation", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({
+            violation: type,
+            exam_id: {{ exam.id }}
+        })
+    });
+
+    // Show warning for first 2 violations
+    if (violationCounter < 3) {
+        showWarning("⚠ " + type + " detected! (" + violationCounter + "/3)");
+    }
+
+    // 🚨 IMMEDIATE TERMINATION ON 3RD
+    if (violationCounter >= 3) {
+        immediateTermination();
+    }
+}
+function immediateTermination() {
+
+    clearInterval(countdown);
+
+    // Disable everything instantly
+    document.querySelectorAll("input, button").forEach(el => {
+        el.disabled = true;
+    });
+
+    // Immediately submit (NO delay)
+    document.getElementById("examForm").submit();
+}
+
+
+
+function disqualifyStudent() {
+    clearInterval(countdown);
+    showWarning("Disqualified due to violations!");
+    setTimeout(() => form.submit(), 1500);
+}
+
+
+/* ================= SECURITY CONTROLS ================= */
+
+document.documentElement.requestFullscreen();
+
+document.addEventListener("fullscreenchange", function() {
+    if (!document.fullscreenElement) {
+        recordViolation("Exited Fullscreen");
+    }
+});
+
+document.addEventListener("visibilitychange", function() {
+    if (document.hidden) {
+        recordViolation("Tab Switch");
+    }
+});
+
+document.addEventListener("contextmenu", function(e) {
+    e.preventDefault();
+    recordViolation("Right Click Attempt");
+});
+
+document.addEventListener("copy", function(e) {
+    e.preventDefault();
+    recordViolation("Copy Attempt");
+});
+
+document.addEventListener("paste", function(e) {
+    e.preventDefault();
+    recordViolation("Paste Attempt");
+});
+
+document.addEventListener("selectstart", function(e) {
+    e.preventDefault();
+});
+
+document.addEventListener("keydown", function(e) {
+
+    if (e.ctrlKey &&
+        (e.key === "c" || e.key === "v" || e.key === "x" || e.key === "u")) {
+
+        e.preventDefault();
+        recordViolation("Keyboard Shortcut Attempt");
+    }
+
+});
+
+</script>
+
+</body>
+</html>

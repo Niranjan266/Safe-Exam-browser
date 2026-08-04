@@ -1,0 +1,66 @@
+{% extends "dash_base.html" %}
+{% from "partials/_macros.html" import icon %}
+{% block title %}Live monitor — {{ APP_NAME }}{% endblock %}
+{% block page_title %}Live monitor{% endblock %}
+{% block head %}<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>{% endblock %}
+{% block topbar_actions %}
+<a class="btn btn-ghost" href="{{ url_for('admin.report_csv') }}">{{ icon('download') }} CSV</a>
+<a class="btn btn-ghost" href="{{ url_for('admin.report_pdf') }}">{{ icon('download') }} PDF report</a>
+<a class="btn" href="{{ url_for('admin.live_wall') }}">{{ icon('eye') }} Live wall</a>
+{% endblock %}
+{% block dash %}
+<div class="card">
+  <div class="row-between" style="margin-bottom:10px;">
+    <div class="section-title" style="margin:0;">{{ icon('activity') }} Candidate status</div>
+    <span class="tag">Refreshes automatically</span>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Candidate</th><th>Exam</th><th>Violations</th><th>Snapshots</th><th>Time left</th><th>Status</th><th class="right">Actions</th></tr></thead>
+      <tbody id="monitorBody"></tbody>
+    </table>
+  </div>
+  <p class="empty" id="monitorEmpty" style="display:none;">No attempts yet.</p>
+</div>
+
+<div class="card">
+  <div class="section-title">{{ icon('chart') }} Violation analytics</div>
+  <canvas id="violationChart" height="80"></canvas>
+</div>
+
+<div class="card">
+  <div class="section-title">{{ icon('log') }} Violation log (latest 100)</div>
+  {% if violations %}
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Candidate</th><th>Exam #</th><th>Type</th><th>Severity</th><th>Time (UTC)</th></tr></thead>
+      <tbody>
+        {% for v in violations %}
+        <tr>
+          <td>{{ names.get(v.student_id, 'User #' ~ v.student_id) }}</td>
+          <td>{{ v.exam_id }}</td>
+          <td>{{ v.violation_type }}</td>
+          <td>{{ v.severity }}</td>
+          <td class="muted">{{ v.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="empty">No violations recorded yet.</p>
+  {% endif %}
+</div>
+
+<script>
+  window.SEB_MONITOR = {
+    feedUrl:   "{{ url_for('api.monitor_feed') }}",
+    statsUrl:  "{{ url_for('api.violation_stats') }}",
+    detailUrl: "{{ url_for('admin.submission_detail', sub_id=0)[:-2] }}",
+    lockUrl:   "{{ url_for('admin.submission_detail', sub_id=0)[:-2] }}",
+    liveUrl:   "{{ url_for('admin.live_view', sub_id=0)[:-2] }}",
+    csrf:      "{{ csrf_token() }}"
+  };
+</script>
+<script src="{{ url_for('static', filename='js/live_monitor.js') }}"></script>
+{% endblock %}

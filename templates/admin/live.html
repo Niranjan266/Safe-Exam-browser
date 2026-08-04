@@ -1,0 +1,82 @@
+{% extends "dash_base.html" %}
+{% from "partials/_macros.html" import icon %}
+{% block title %}Live view — {{ student.full_name or student.username }}{% endblock %}
+{% block page_title %}Live view{% endblock %}
+{% block topbar_actions %}
+<a class="btn btn-ghost" href="{{ url_for('admin.submission_detail', sub_id=sub.id) }}">{{ icon('eye') }} Attempt details</a>
+<a class="btn btn-ghost" href="{{ url_for('admin.monitor') }}">{{ icon('chevron') }} Back to monitor</a>
+{% endblock %}
+{% block dash %}
+<div class="card">
+  <div class="row-between">
+    <div class="meta-row">
+      <span>{{ icon('user') }} <strong>{{ student.full_name or student.username }}</strong></span>
+      <span>{{ icon('file') }} {{ sub.exam.title }}</span>
+      <span class="live-dot">{{ icon('activity') }} <span id="liveState">Connecting…</span></span>
+    </div>
+    <div class="btn-row">
+      <form class="inline-form" method="POST" action="{{ url_for('admin.submission_lock', sub_id=sub.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="next" value="{{ request.path }}">
+        <button class="btn btn-sm btn-warning">{{ icon('lock') }} Lock</button></form>
+      <form class="inline-form" method="POST" action="{{ url_for('admin.submission_disqualify', sub_id=sub.id) }}" onsubmit="return confirm('Disqualify this attempt?');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="next" value="{{ request.path }}">
+        <button class="btn btn-sm btn-danger">{{ icon('alert') }} Disqualify</button></form>
+    </div>
+  </div>
+</div>
+
+<div class="grid live-grid">
+  <div class="card live-stage">
+    <div class="live-head">
+      <span class="section-title" style="margin:0;">{{ icon('maximize') }} Student screen</span>
+      <span class="badge badge-danger live-badge"><span class="rec-dot"></span> Live</span>
+    </div>
+    <div class="live-screen-wrap">
+      <img id="screenFrame" alt="Student screen">
+      <div class="live-wait" id="screenWait">{{ icon('maximize', 'ic-xl') }}<p>Waiting for the student's screen…</p>
+        <span class="tag">The student must grant screen sharing in secure mode.</span></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="section-title" style="margin:0 0 10px;">{{ icon('camera') }} Webcam</div>
+    <div class="live-cam-wrap">
+      <img id="camFrame" alt="Student webcam">
+      <div class="live-wait sm" id="camWait">{{ icon('camera', 'ic-xl') }}<p>No webcam feed</p></div>
+    </div>
+    <div class="divider"></div>
+    <p class="tag">Status:
+      <span class="badge {{ 'badge-danger' if status in ['Disqualified','Locked','Disconnected'] else 'badge-warning' if status=='High Risk' else 'badge-success' }}">{{ status }}</span>
+    </p>
+    <p class="tag" id="lastUpdate">Last frame: —</p>
+  </div>
+</div>
+
+<script>
+  (function () {
+    var screenBase = "{{ url_for('admin.live_frame_image', sub_id=sub.id, kind='screen') }}";
+    var camBase = "{{ url_for('admin.live_frame_image', sub_id=sub.id, kind='cam') }}";
+    var liveState = document.getElementById('liveState');
+    var lastUpdate = document.getElementById('lastUpdate');
+    var anyScreen = false;
+
+    function refresh(base, img, wait, onok) {
+      var url = base + '?t=' + Date.now();
+      var probe = new Image();
+      probe.onload = function () { img.src = url; img.style.display = 'block'; wait.style.display = 'none'; if (onok) onok(); };
+      probe.onerror = function () { img.style.display = 'none'; wait.style.display = 'flex'; };
+      probe.src = url;
+    }
+    function tick() {
+      refresh(screenBase, document.getElementById('screenFrame'), document.getElementById('screenWait'), function () {
+        anyScreen = true; liveState.textContent = 'LIVE'; liveState.style.color = 'var(--success)';
+        lastUpdate.textContent = 'Last frame: ' + new Date().toLocaleTimeString();
+      });
+      refresh(camBase, document.getElementById('camFrame'), document.getElementById('camWait'), null);
+      setTimeout(function () { if (!anyScreen) { liveState.textContent = 'Waiting for student'; liveState.style.color = 'var(--muted)'; } anyScreen = false; }, 1100);
+    }
+    tick();
+    setInterval(tick, 1200);
+  })();
+</script>
+{% endblock %}

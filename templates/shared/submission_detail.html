@@ -1,0 +1,115 @@
+{% extends "dash_base.html" %}
+{% from "partials/_macros.html" import icon %}
+{% block title %}Attempt #{{ sub.id }} — {{ APP_NAME }}{% endblock %}
+{% block page_title %}Attempt #{{ sub.id }}{% endblock %}
+{% block topbar_actions %}
+{% if current_user.is_admin and not sub.completed %}<a class="btn" href="{{ url_for('admin.live_view', sub_id=sub.id) }}">{{ icon('activity') }} Live view</a>{% endif %}
+<a class="btn btn-ghost" href="{{ url_for(ns ~ '.results') }}">{{ icon('chevron') }} Back</a>
+{% endblock %}
+{% block dash %}
+<div class="card">
+  <div class="meta-row">
+    <span>{{ icon('user') }} <strong>{{ student.full_name or student.username }}</strong></span>
+    <span>{{ icon('file') }} {{ sub.exam.title }}</span>
+    <span>{{ icon('clock') }} {{ sub.started_at.strftime('%Y-%m-%d %H:%M') if sub.started_at else '—' }}</span>
+  </div>
+</div>
+
+<div class="grid cols-4">
+  <div class="kpi"><div class="kpi-ic">{{ icon('chart') }}</div><div><div class="kpi-num">{% if sub.score is not none %}{{ sub.score }}/{{ sub.total }}{% else %}—{% endif %}</div><div class="kpi-label">Score · {{ percent }}%</div></div></div>
+  <div class="kpi {{ 'success' if percent >= pass_mark and sub.completed else 'danger' }}"><div class="kpi-ic">{{ icon('award') }}</div><div><div class="kpi-num" style="font-size:18px;">{{ 'Pass' if percent >= pass_mark and sub.completed else 'Fail' if sub.completed else '—' }}</div><div class="kpi-label">Pass mark {{ pass_mark }}%</div></div></div>
+  <div class="kpi danger"><div class="kpi-ic">{{ icon('alert') }}</div><div><div class="kpi-num">{{ sub.violation_count }}</div><div class="kpi-label">Violations</div></div></div>
+  <div class="kpi"><div class="kpi-ic">{{ icon('camera') }}</div><div><div class="kpi-num">{{ sub.snapshots|length }}</div><div class="kpi-label">Snapshots</div></div></div>
+</div>
+
+{% if current_user.is_admin %}
+<div class="card">
+  <div class="row-between">
+    <div class="section-title" style="margin:0;">{{ icon('settings') }} Proctor actions
+      &nbsp;<span class="badge {{ 'badge-danger' if status in ['Disqualified','Locked','Disconnected'] else 'badge-warning' if status=='High Risk' else 'badge-success' }}">{{ status }}</span></div>
+    <div class="btn-row">
+      <form class="inline-form" method="POST" action="{{ url_for(ns ~ '.submission_lock', sub_id=sub.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="next" value="{{ request.path }}">
+        <button class="btn btn-sm btn-warning">{{ icon('lock') }} Lock</button></form>
+      <form class="inline-form" method="POST" action="{{ url_for(ns ~ '.submission_unlock', sub_id=sub.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="next" value="{{ request.path }}">
+        <button class="btn btn-sm btn-success">{{ icon('unlock') }} Unlock</button></form>
+      <form class="inline-form" method="POST" action="{{ url_for(ns ~ '.submission_disqualify', sub_id=sub.id) }}" onsubmit="return confirm('Disqualify this attempt (score set to 0)?');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="next" value="{{ request.path }}">
+        <button class="btn btn-sm btn-danger">{{ icon('alert') }} Disqualify</button></form>
+    </div>
+  </div>
+  {% if sub.termination_reason %}<p class="muted" style="margin-top:10px;">Reason: {{ sub.termination_reason }}</p>{% endif %}
+  <div class="divider"></div>
+  <form method="POST" action="{{ url_for(ns ~ '.submission_score', sub_id=sub.id) }}" style="display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="next" value="{{ request.path }}">
+    <div class="form-group" style="margin:0; max-width:160px;">
+      <label>Override score</label>
+      <input type="number" name="score" min="0" max="{{ sub.total or sub.exam.question_count }}" value="{{ sub.score if sub.score is not none else 0 }}">
+    </div>
+    <span class="tag" style="margin-bottom:11px;">out of {{ sub.total or sub.exam.question_count }}</span>
+    <button class="btn btn-ghost" type="submit" style="margin-bottom:0;">{{ icon('check') }} Update score</button>
+  </form>
+</div>
+{% else %}
+<div class="card">
+  <div class="meta-row">
+    <span>{{ icon('shield') }} Status <span class="badge badge-muted">{{ status }}</span></span>
+    <span class="tag">Proctoring actions and camera evidence are restricted to administrators.</span>
+  </div>
+</div>
+{% endif %}
+
+{% if current_user.is_admin and sub.snapshots %}
+<div class="card">
+  <div class="section-title">{{ icon('camera') }} Webcam snapshots</div>
+  <div class="grid" style="grid-template-columns: repeat(auto-fill, minmax(150px,1fr));">
+    {% for snap in sub.snapshots %}
+    <div>
+      <a href="{{ url_for('admin.snapshot_image', snap_id=snap.id) }}" target="_blank">
+        <img src="{{ url_for('admin.snapshot_image', snap_id=snap.id) }}" alt="snapshot" style="width:100%; border-radius:9px; border:1px solid var(--border);">
+      </a>
+      <p class="tag">{{ snap.captured_at.strftime('%H:%M:%S') }}</p>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<div class="card">
+  <div class="section-title">{{ icon('alert') }} Violation timeline</div>
+  {% if violations %}
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>#</th><th>Type</th><th>Severity</th><th>Detail</th><th>Time (UTC)</th></tr></thead>
+      <tbody>
+        {% for v in violations %}
+        <tr><td>{{ loop.index }}</td><td>{{ v.violation_type }}</td><td>{{ v.severity }}</td>
+        <td class="muted">{{ v.details or '—' }}</td><td class="muted">{{ v.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}<p class="empty">No violations.</p>{% endif %}
+</div>
+
+<div class="card">
+  <div class="section-title">{{ icon('list') }} Answers</div>
+  {% for q in sub.exam.questions %}
+  <div style="padding:12px 0; border-bottom:1px solid var(--border-soft);">
+    <p style="font-weight:600;">{{ loop.index }}. {{ q.text }}</p>
+    {% set chosen = saved.get(q.id) %}
+    <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
+      {% for value, label in q.options() %}
+        {% set is_correct = (value == q.correct_answer) %}
+        {% set is_chosen = (value == chosen) %}
+        <span class="badge {{ 'badge-success' if is_correct else 'badge-danger' if is_chosen else 'badge-muted' }}">
+          {{ value }}. {{ label }}{% if is_chosen %} · chosen{% endif %}{% if is_correct %} · correct{% endif %}
+        </span>
+      {% endfor %}
+    </div>
+    {% if chosen is none %}<p class="tag" style="margin-top:6px;">Not answered</p>{% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

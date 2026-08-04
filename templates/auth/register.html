@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% from "partials/_macros.html" import icon %}
+{% from "partials/_logo.html" import logo_mark, wordmark %}
+{% block title %}Create account — {{ APP_NAME }}{% endblock %}
+{% block body %}
+{% include "partials/_flashes.html" %}
+<div class="auth-center">
+  <div class="auth-card">
+    <div class="auth-logo">
+      <span class="brand-mark">{{ logo_mark() }}</span>
+      <div class="name">{{ wordmark() }}</div>
+      <div class="tagline">{{ APP_TAGLINE }}</div>
+    </div>
+
+    <h2>Create account</h2>
+    <p class="sub">It only takes a moment to get started.</p>
+
+    <form method="POST" novalidate>
+      {{ form.hidden_tag() }}
+      <div class="form-group input-icon">
+        {{ form.username.label }}{{ icon('user') }}{{ form.username(placeholder="Choose a username") }}
+        {% for e in form.username.errors %}<div class="field-error">{{ e }}</div>{% endfor %}
+      </div>
+      <div class="form-group input-icon">
+        {{ form.full_name.label }}{{ icon('user') }}{{ form.full_name(placeholder="Your full name (optional)") }}
+      </div>
+      <div class="two-col">
+        <div class="form-group input-icon">
+          {{ form.password.label }}{{ icon('lock') }}{{ form.password(placeholder="Min. 6 chars") }}
+          {% for e in form.password.errors %}<div class="field-error">{{ e }}</div>{% endfor %}
+        </div>
+        <div class="form-group input-icon">
+          {{ form.confirm.label }}{{ icon('lock') }}{{ form.confirm(placeholder="Repeat") }}
+          {% for e in form.confirm.errors %}<div class="field-error">{{ e }}</div>{% endfor %}
+        </div>
+      </div>
+      <p class="tag" style="margin-bottom:14px;">
+        {{ icon('shield') }} Sign-up creates a candidate account. Teacher and administrator
+        accounts are issued by an administrator.
+      </p>
+      <button type="submit" class="btn-block">{{ icon('check') }} Create account</button>
+    </form>
+
+    <div class="auth-footer">Already registered? <a href="{{ url_for('auth.login') }}">Sign in</a></div>
+  </div>
+</div>
+{% endblock %}

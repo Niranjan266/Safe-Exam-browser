@@ -1,0 +1,56 @@
+{% extends "dash_base.html" %}
+{% from "partials/_macros.html" import icon %}
+{% block title %}Exams — {{ APP_NAME }}{% endblock %}
+{% block page_title %}Exams{% endblock %}
+{% block topbar_actions %}
+<a class="btn" href="{{ url_for('admin.exam_new') }}">{{ icon('plus') }} New exam</a>
+{% endblock %}
+{% block dash %}
+<div class="card">
+  {% if exams %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Title</th><th>Duration</th><th>Questions</th><th>Pass</th><th>Status</th><th>Attempts</th><th class="right">Actions</th></tr>
+      </thead>
+      <tbody>
+        {% for exam in exams %}
+        <tr>
+          <td><strong>{{ exam.title }}</strong></td>
+          <td>{{ exam.duration }} min</td>
+          <td>{{ exam.question_count }}</td>
+          <td>{{ exam.pass_mark if exam.pass_mark is not none else policy.pass_mark }}%</td>
+          <td>
+            {% set lbl = exam.availability_label() %}
+            <span class="badge {{ 'badge-success' if lbl == 'Open' else 'badge-warning' if lbl in ['Draft','Scheduled'] else 'badge-danger' }}">{{ lbl }}</span>
+          </td>
+          <td>{{ exam.submissions|length }}</td>
+          <td class="right">
+            <div class="btn-row" style="justify-content:flex-end;">
+              <a class="btn btn-sm btn-ghost" href="{{ url_for('admin.exam_stats', exam_id=exam.id) }}" title="Statistics">{{ icon('chart') }}</a>
+              <a class="btn btn-sm btn-ghost" href="{{ url_for('admin.questions', exam_id=exam.id) }}" title="Questions">{{ icon('list') }}</a>
+              <a class="btn btn-sm btn-ghost" href="{{ url_for('admin.exam_edit', exam_id=exam.id) }}" title="Edit">{{ icon('edit') }}</a>
+              <form class="inline-form" method="POST" action="{{ url_for('admin.exam_clone', exam_id=exam.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="btn btn-sm btn-ghost" title="Duplicate">{{ icon('copy') }}</button>
+              </form>
+              <form class="inline-form" method="POST" action="{{ url_for('admin.exam_publish', exam_id=exam.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="btn btn-sm {{ 'btn-warning' if exam.is_published else 'btn-success' }}">{{ 'Unpublish' if exam.is_published else 'Publish' }}</button>
+              </form>
+              <form class="inline-form" method="POST" action="{{ url_for('admin.exam_delete', exam_id=exam.id) }}" onsubmit="return confirm('Delete this exam and all its questions and submissions?');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="btn btn-sm btn-danger" title="Delete">{{ icon('trash') }}</button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="empty">No exams yet. <a href="{{ url_for('admin.exam_new') }}">Create your first exam</a>.</p>
+  {% endif %}
+</div>
+{% endblock %}

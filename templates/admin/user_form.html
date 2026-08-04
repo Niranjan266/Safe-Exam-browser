@@ -1,0 +1,29 @@
+{% extends "dash_base.html" %}
+{% from "partials/_macros.html" import icon %}
+{% block title %}{{ 'Edit user' if user else 'New user' }} — {{ APP_NAME }}{% endblock %}
+{% block page_title %}{{ 'Edit user' if user else 'New user' }}{% endblock %}
+{% block topbar_actions %}<a class="btn btn-ghost" href="{{ url_for('admin.users') }}">{{ icon('chevron') }} Back</a>{% endblock %}
+{% block dash %}
+<div class="card" style="max-width:640px;">
+  <form method="POST" novalidate>
+    {{ form.hidden_tag() }}
+    <div class="two-col">
+      <div class="form-group">{{ form.username.label }} {{ form.username() }}
+        {% for e in form.username.errors %}<div class="field-error">{{ e }}</div>{% endfor %}</div>
+      <div class="form-group">{{ form.full_name.label }} {{ form.full_name() }}</div>
+    </div>
+    <div class="two-col">
+      <div class="form-group">{{ form.email.label }} {{ form.email(placeholder="optional") }}</div>
+      <div class="form-group">{{ form.role.label }} {{ form.role() }}</div>
+    </div>
+    <div class="form-group">
+      {{ form.password.label }}
+      {{ form.password(placeholder="Leave blank to keep current password" if user else "Set a password") }}
+      <div class="helper-text">{% if user %}Only fill this in to reset the password.{% else %}Minimum 6 characters.{% endif %}</div>
+      {% for e in form.password.errors %}<div class="field-error">{{ e }}</div>{% endfor %}
+    </div>
+    <div class="form-group checkbox-row">{{ form.active() }} {{ form.active.label }}</div>
+    <button type="submit">{{ icon('check') }} {{ 'Save changes' if user else 'Create user' }}</button>
+  </form>
+</div>
+{% endblock %}

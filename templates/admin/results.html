@@ -1,0 +1,47 @@
+{% extends "dash_base.html" %}
+{% from "partials/_macros.html" import icon %}
+{% block title %}Results — {{ APP_NAME }}{% endblock %}
+{% block page_title %}Results{% endblock %}
+{% block topbar_actions %}
+<a class="btn btn-ghost" href="{{ url_for('admin.report_csv', exam_id=exam_id) }}">{{ icon('download') }} CSV</a>
+<a class="btn" href="{{ url_for('admin.report_pdf') }}">{{ icon('download') }} PDF report</a>
+{% endblock %}
+{% block dash %}
+<div class="card">
+  <div class="toolbar">
+    <form method="GET">
+      <div class="search">{{ icon('search') }}<input type="text" name="q" value="{{ q }}" placeholder="Search candidate or exam"></div>
+      <select name="exam_id" onchange="this.form.submit()">
+        <option value="">All exams</option>
+        {% for e in exams %}<option value="{{ e.id }}" {{ 'selected' if exam_id == e.id }}>{{ e.title }}</option>{% endfor %}
+      </select>
+      <button class="btn btn-ghost" type="submit">{{ icon('search') }} Filter</button>
+      {% if q or exam_id %}<a class="btn btn-ghost" href="{{ url_for('admin.results') }}">Clear</a>{% endif %}
+    </form>
+  </div>
+
+  {% if rows %}
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>#</th><th>Candidate</th><th>Exam</th><th>Score</th><th>Status</th><th>Violations</th><th>Started (UTC)</th><th class="right">Details</th></tr></thead>
+      <tbody>
+        {% for sub, username, exam_title in rows %}
+        <tr>
+          <td>{{ sub.id }}</td>
+          <td>{{ username }}</td>
+          <td>{{ exam_title }}</td>
+          <td>{% if sub.score is not none %}{{ sub.score }}/{{ sub.total }}{% else %}<span class="muted">—</span>{% endif %}</td>
+          <td class="status-{{ sub.status_label().split(' ')[0] }}">{{ sub.status_label() }}</td>
+          <td>{{ sub.violation_count }}</td>
+          <td class="muted">{{ sub.started_at.strftime('%Y-%m-%d %H:%M') if sub.started_at else '—' }}</td>
+          <td class="right"><a class="btn btn-sm btn-ghost" href="{{ url_for('admin.submission_detail', sub_id=sub.id) }}">{{ icon('eye') }} View</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="empty">No submissions match your filters.</p>
+  {% endif %}
+</div>
+{% endblock %}

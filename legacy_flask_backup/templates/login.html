@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Login - SafeExam</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+
+    <style>
+        .auth-wrapper {
+            display: flex;
+            height: 100vh;
+        }
+
+        .auth-left {
+            flex: 1;
+            background: linear-gradient(135deg, #1e293b, #0f172a);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 40px;
+        }
+
+        .auth-left h1 {
+            font-size: 40px;
+            color: white;
+        }
+
+        .auth-left p {
+            color: #94a3b8;
+            margin-top: 15px;
+            max-width: 350px;
+        }
+
+        .auth-right {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: #0f172a;
+        }
+
+        .auth-card {
+            background: #1e293b;
+            padding: 40px;
+            width: 350px;
+            border-radius: 14px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+        }
+
+        .auth-card h2 {
+            margin-bottom: 20px;
+        }
+
+        .auth-card input {
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 15px;
+            border-radius: 8px;
+            border: 1px solid #334155;
+            background: #0f172a;
+            color: white;
+        }
+
+        .auth-card input:focus {
+            outline: none;
+            border-color: #3b82f6;
+        }
+
+        .auth-card button {
+            width: 100%;
+            margin-top: 10px;
+        }
+
+        .auth-footer {
+            margin-top: 15px;
+            font-size: 14px;
+            color: #94a3b8;
+            text-align: center;
+        }
+
+        .auth-footer a {
+            color: #3b82f6;
+            text-decoration: none;
+        }
+
+    </style>
+</head>
+
+<body>
+
+<div class="auth-wrapper">
+
+    <!-- LEFT SIDE -->
+    <div class="auth-left">
+        <div>
+            <h1>SafeExam</h1>
+            <p>
+                Secure. Monitor. Control.  
+                A next-generation online examination platform designed to
+                prevent malpractice and ensure integrity.
+            </p>
+        </div>
+    </div>
+
+    <!-- RIGHT SIDE -->
+    <div class="auth-right">
+        <div class="auth-card">
+            <h2>Admin / Student Login</h2>
+
+            <form method="POST">
+                <input type="text" name="username" placeholder="Username" required>
+                <input type="password" name="password" placeholder="Password" required>
+
+                <button type="submit">Login</button>
+            </form>
+
+            <div class="auth-footer">
+                Don't have an account?
+                <a href="/register">Register</a>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+</body>
+</html>

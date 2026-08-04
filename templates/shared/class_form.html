@@ -1,0 +1,59 @@
+{% extends "dash_base.html" %}
+{% from "partials/_macros.html" import icon %}
+{% block title %}{{ 'Edit class' if cls else 'New class' }} — {{ APP_NAME }}{% endblock %}
+{% block page_title %}{{ 'Edit class' if cls else 'New class' }}{% endblock %}
+{% block topbar_actions %}<a class="btn btn-ghost" href="{{ url_for(ns ~ '.classes') }}">{{ icon('chevron') }} Back</a>{% endblock %}
+{% block dash %}
+<div class="card" style="max-width:780px;">
+  <form method="POST" novalidate>
+    {{ form.hidden_tag() }}
+
+    <div class="two-col">
+      <div class="form-group">
+        {{ form.name.label }} {{ form.name(placeholder="e.g. BCom III Year") }}
+        {% for e in form.name.errors %}<div class="field-error">{{ e }}</div>{% endfor %}
+      </div>
+      <div class="form-group">
+        {{ form.section.label }} {{ form.section(placeholder="e.g. A") }}
+        {% for e in form.section.errors %}<div class="field-error">{{ e }}</div>{% endfor %}
+      </div>
+    </div>
+
+    <div class="two-col">
+      <div class="form-group">
+        {{ form.subject_name.label }} {{ form.subject_name(placeholder="e.g. Financial Accounting") }}
+        {% for e in form.subject_name.errors %}<div class="field-error">{{ e }}</div>{% endfor %}
+      </div>
+      <div class="form-group">
+        {{ form.subject_code.label }} {{ form.subject_code(placeholder="e.g. FA-301") }}
+        {% for e in form.subject_code.errors %}<div class="field-error">{{ e }}</div>{% endfor %}
+      </div>
+    </div>
+
+    <div class="two-col">
+      <div class="form-group">
+        {{ form.academic_year.label }} {{ form.academic_year(placeholder="e.g. 2026-27") }}
+        {% for e in form.academic_year.errors %}<div class="field-error">{{ e }}</div>{% endfor %}
+      </div>
+      {# Teachers own the classes they create, so the view removes this field. #}
+      {% if form.teacher_id %}
+      <div class="form-group">
+        {{ form.teacher_id.label }} {{ form.teacher_id() }}
+        <div class="helper-text">The teacher who maintains this class.</div>
+      </div>
+      {% endif %}
+    </div>
+
+    <div class="form-group">
+      {{ form.description.label }} {{ form.description(rows=3, placeholder="Optional notes about this class") }}
+    </div>
+
+    <div class="form-group checkbox-row">{{ form.active() }} {{ form.active.label }}</div>
+    <div class="helper-text" style="margin-bottom:14px;">
+      Subject code + section + academic year must be unique.
+    </div>
+
+    <button type="submit">{{ icon('check') }} {{ 'Save changes' if cls else 'Create class' }}</button>
+  </form>
+</div>
+{% endblock %}

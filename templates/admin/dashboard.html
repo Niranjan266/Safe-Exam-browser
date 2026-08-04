@@ -1,0 +1,81 @@
+{% extends "dash_base.html" %}
+{% from "partials/_macros.html" import icon %}
+{% block title %}Dashboard — {{ APP_NAME }}{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+{% block head %}<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>{% endblock %}
+{% block topbar_actions %}
+<a class="btn" href="{{ url_for('admin.exam_new') }}">{{ icon('plus') }} New exam</a>
+{% endblock %}
+{% block dash %}
+
+<div class="grid cols-4">
+  <div class="kpi"><div class="kpi-ic">{{ icon('file') }}</div><div><div class="kpi-num">{{ stats.exams }}</div><div class="kpi-label">Exams · {{ stats.published }} live</div></div></div>
+  <div class="kpi success"><div class="kpi-ic">{{ icon('users') }}</div><div><div class="kpi-num">{{ stats.students }}</div><div class="kpi-label">Candidates</div></div></div>
+  <div class="kpi warning"><div class="kpi-ic">{{ icon('activity') }}</div><div><div class="kpi-num">{{ stats.active }}</div><div class="kpi-label">Active attempts</div></div></div>
+  <div class="kpi danger"><div class="kpi-ic">{{ icon('alert') }}</div><div><div class="kpi-num">{{ stats.violations }}</div><div class="kpi-label">Violations logged</div></div></div>
+</div>
+
+<div class="grid cols-2">
+  <div class="card">
+    <div class="section-title">{{ icon('chart') }} Submissions (last 14 days)</div>
+    <canvas id="trendChart" height="120"></canvas>
+  </div>
+  <div class="card">
+    <div class="section-title">{{ icon('alert') }} Violations by type</div>
+    {% if vstats.labels %}
+    <canvas id="violChart" height="120"></canvas>
+    {% else %}
+    <p class="empty">No violations recorded yet.</p>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card">
+  <div class="row-between" style="margin-bottom:12px;">
+    <div class="section-title" style="margin:0;">{{ icon('clock') }} Recent violations</div>
+    <a class="btn btn-ghost btn-sm" href="{{ url_for('admin.monitor') }}">{{ icon('activity') }} Live monitor</a>
+  </div>
+  {% if recent_violations %}
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Candidate</th><th>Type</th><th>Severity</th><th>Time (UTC)</th></tr></thead>
+      <tbody>
+        {% for v in recent_violations %}
+        <tr>
+          <td>{{ recent_names.get(v.student_id, 'User #' ~ v.student_id) }}</td>
+          <td>{{ v.violation_type }}</td>
+          <td><span class="badge badge-warning">{{ v.severity }}</span></td>
+          <td class="muted">{{ v.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="empty">No violations recorded yet.</p>
+  {% endif %}
+</div>
+
+<script>
+  const TREND = {{ trend|tojson }};
+  const VSTATS = {{ vstats|tojson }};
+  const gridc = "#e4e9f2", tickc = "#6b7a90";
+  if (window.Chart) {
+    new Chart(document.getElementById('trendChart'), {
+      type: 'line',
+      data: { labels: TREND.labels, datasets: [{ label: 'Submissions', data: TREND.values,
+        borderColor: '#4f7cff', backgroundColor: 'rgba(79,124,255,.18)', fill: true, tension: .35, pointRadius: 2 }] },
+      options: { plugins: { legend: { display: false } },
+        scales: { x: { ticks: { color: tickc }, grid: { color: gridc } }, y: { beginAtZero: true, ticks: { color: tickc, precision: 0 }, grid: { color: gridc } } } }
+    });
+    const vc = document.getElementById('violChart');
+    if (vc && VSTATS.labels.length) new Chart(vc, {
+      type: 'bar',
+      data: { labels: VSTATS.labels, datasets: [{ label: 'Count', data: VSTATS.values,
+        backgroundColor: 'rgba(239,68,68,.55)', borderColor: '#ef4444', borderWidth: 1, borderRadius: 5 }] },
+      options: { plugins: { legend: { display: false } },
+        scales: { x: { ticks: { color: tickc }, grid: { color: gridc } }, y: { beginAtZero: true, ticks: { color: tickc, precision: 0 }, grid: { color: gridc } } } }
+    });
+  }
+</script>
+{% endblock %}

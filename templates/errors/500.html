@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% from "partials/_macros.html" import icon %}
+{% block title %}Error — {{ APP_NAME }}{% endblock %}
+{% block body %}
+<div class="result-center">
+  <div class="result-card">
+    <div class="big-ic warning">{{ icon('alert', 'ic-xl') }}</div>
+    <h2>500 — Something went wrong</h2>
+    <p class="muted" style="margin:10px 0 22px;">An unexpected error occurred. Please try again.</p>
+    <a class="btn" href="{{ url_for('auth.index') }}">{{ icon('chevron') }} Go home</a>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% from "partials/_macros.html" import icon %}
+{% block title %}Attempt locked — {{ exam.title }}{% endblock %}
+{% block body %}
+<div class="result-center">
+  <div class="result-card">
+    <div class="big-ic danger">{{ icon('lock', 'ic-xl') }}</div>
+    <h2>Attempt locked</h2>
+    <p class="muted" style="margin:12px 0;">Your attempt at <strong>{{ exam.title }}</strong> has been locked.</p>
+    <div class="badge badge-danger">{{ reason or 'Locked by proctor' }}</div>
+    <div class="divider"></div>
+    <p class="tag">If you believe this is a mistake, contact your proctor. They can unlock your attempt.</p>
+    <a class="btn btn-block" style="margin-top:18px;" href="{{ url_for('student.dashboard') }}">{{ icon('chevron') }} Back to my exams</a>
+  </div>
+</div>
+<script>
+  setInterval(function () {
+    fetch("{{ url_for('api.exam_state', exam_id=exam.id) }}")
+      .then(function (r) { return r.json(); })
+      .then(function (s) {
+        if (s.exists && !s.locked && !s.disqualified && !s.completed) {
+          window.location = "{{ url_for('student.start_exam', exam_id=exam.id) }}";
+        }
+      }).catch(function () {});
+  }, 4000);
+</script>
+{% endblock %}

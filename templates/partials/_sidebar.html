@@ -1,0 +1,36 @@
+{% from "partials/_macros.html" import icon %}
+{% from "partials/_logo.html" import logo_mark, wordmark %}
+{% set ep = request.endpoint or '' %}
+<aside class="sidebar">
+    <a class="brand" href="{{ url_for('auth.index') }}">
+        <span class="brand-mark">{{ logo_mark() }}</span>
+        <span class="brand-text">{{ wordmark() }}<small>{{ APP_TAGLINE }}</small></span>
+    </a>
+
+    <nav>
+        {% if current_user.is_admin %}
+        <a href="{{ url_for('admin.dashboard') }}" class="{{ 'active' if ep == 'admin.dashboard' }}">{{ icon('grid') }} Dashboard</a>
+        <a href="{{ url_for('admin.classes') }}" class="{{ 'active' if 'class' in ep }}">{{ icon('clipboard') }} Classes</a>
+        <a href="{{ url_for('admin.exams') }}" class="{{ 'active' if 'exam' in ep or 'question' in ep }}">{{ icon('file') }} Exams</a>
+        <a href="{{ url_for('admin.users') }}" class="{{ 'active' if 'user' in ep }}">{{ icon('users') }} Users</a>
+        <a href="{{ url_for('admin.live_wall') }}" class="{{ 'active' if ep in ['admin.live_wall', 'admin.live_view'] }}">{{ icon('eye') }} Live wall</a>
+        <a href="{{ url_for('admin.monitor') }}" class="{{ 'active' if ep == 'admin.monitor' }}">{{ icon('activity') }} Live monitor</a>
+        <a href="{{ url_for('admin.results') }}" class="{{ 'active' if ep in ['admin.results', 'admin.submission_detail'] }}">{{ icon('chart') }} Results</a>
+        <a href="{{ url_for('admin.settings') }}" class="{{ 'active' if ep == 'admin.settings' }}">{{ icon('settings') }} Settings</a>
+        <a href="{{ url_for('admin.audit') }}" class="{{ 'active' if ep == 'admin.audit' }}">{{ icon('log') }} Audit log</a>
+
+        {% elif current_user.is_teacher %}
+        <a href="{{ url_for('teacher.dashboard') }}" class="{{ 'active' if ep == 'teacher.dashboard' }}">{{ icon('grid') }} Dashboard</a>
+        <a href="{{ url_for('teacher.classes') }}" class="{{ 'active' if 'class' in ep }}">{{ icon('clipboard') }} My classes</a>
+        <a href="{{ url_for('teacher.exams') }}" class="{{ 'active' if 'exam' in ep or 'question' in ep }}">{{ icon('file') }} My exams</a>
+        <a href="{{ url_for('teacher.results') }}" class="{{ 'active' if ep in ['teacher.results', 'teacher.submission_detail'] }}">{{ icon('chart') }} Results</a>
+
+        {% else %}
+        <a href="{{ url_for('student.dashboard') }}" class="{{ 'active' if ep == 'student.dashboard' }}">{{ icon('file') }} My exams</a>
+        {% endif %}
+    </nav>
+
+    <div class="sidebar-foot">
+        <a href="{{ url_for('auth.logout') }}" class="logout-link">{{ icon('logout') }} Sign out</a>
+    </div>
+</aside>

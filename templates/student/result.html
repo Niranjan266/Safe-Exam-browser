@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% from "partials/_macros.html" import icon %}
+{% block title %}Result — {{ exam.title }}{% endblock %}
+{% block body %}
+{% set pass_mark = exam.pass_mark if exam.pass_mark is not none else policy.pass_mark %}
+{% set passed = percentage >= pass_mark and not submission.disqualified %}
+<div class="result-center">
+  <div class="result-card">
+    <div class="big-ic">{{ icon('award', 'ic-xl') }}</div>
+    <h2>Exam completed</h2>
+    <p class="muted" style="margin-top:6px;">{{ exam.title }}</p>
+
+    <div class="ring" style="--p: {{ percentage }};"><div class="inner">{{ percentage }}%</div></div>
+    <div class="score-number">{{ score }} / {{ total }}</div>
+
+    {% if submission.disqualified %}
+      <div class="badge badge-danger" style="margin-top:6px;">Disqualified — {{ submission.termination_reason or 'integrity violations' }}</div>
+    {% elif passed %}
+      <div class="badge badge-success" style="margin-top:6px;">Passed · pass mark {{ pass_mark }}%</div>
+    {% else %}
+      <div class="badge badge-warning" style="margin-top:6px;">Below pass mark ({{ pass_mark }}%)</div>
+    {% endif %}
+
+    <div class="divider"></div>
+    <p class="tag">Violations recorded: {{ submission.violation_count }}</p>
+    <a class="btn btn-block" style="margin-top:18px;" href="{{ url_for('student.dashboard') }}">{{ icon('chevron') }} Back to my exams</a>
+  </div>
+</div>
+{% endblock %}

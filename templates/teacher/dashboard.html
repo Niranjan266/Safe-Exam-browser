@@ -1,0 +1,90 @@
+{% extends "dash_base.html" %}
+{% from "partials/_macros.html" import icon %}
+{% block title %}Dashboard — {{ APP_NAME }}{% endblock %}
+{% block page_title %}Teacher dashboard{% endblock %}
+{% block topbar_actions %}
+<a class="btn btn-ghost" href="{{ url_for('teacher.class_new') }}">{{ icon('users') }} New class</a>
+<a class="btn" href="{{ url_for('teacher.exam_new') }}">{{ icon('plus') }} New exam</a>
+{% endblock %}
+{% block dash %}
+
+<div class="grid cols-4">
+  <div class="kpi"><div class="kpi-ic">{{ icon('users') }}</div><div><div class="kpi-num">{{ stats.classes }}</div><div class="kpi-label">My classes</div></div></div>
+  <div class="kpi"><div class="kpi-ic">{{ icon('file') }}</div><div><div class="kpi-num">{{ stats.exams }}</div><div class="kpi-label">My exams · {{ stats.published }} live</div></div></div>
+  <div class="kpi warning"><div class="kpi-ic">{{ icon('activity') }}</div><div><div class="kpi-num">{{ stats.in_progress }}</div><div class="kpi-label">Attempts in progress</div></div></div>
+  <div class="kpi success"><div class="kpi-ic">{{ icon('chart') }}</div><div><div class="kpi-num">{{ stats.avg }}%</div><div class="kpi-label">Average score</div></div></div>
+</div>
+
+<div class="grid cols-2">
+  <div class="card">
+    <div class="row-between" style="margin-bottom:12px;">
+      <div class="section-title" style="margin:0;">{{ icon('users') }} My classes</div>
+      <a class="btn btn-ghost btn-sm" href="{{ url_for('teacher.classes') }}">View all</a>
+    </div>
+    {% if classes %}
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Class</th><th>Subject</th><th>Code</th><th>Exams</th></tr></thead>
+        <tbody>
+          {% for c in classes %}
+          <tr>
+            <td><strong>{{ c.name }}</strong>{% if c.section %} <span class="tag">Sec {{ c.section }}</span>{% endif %}</td>
+            <td>{{ c.subject_name }}</td>
+            <td><span class="badge badge-muted">{{ c.subject_code }}</span></td>
+            <td>{{ c.exam_count }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="empty">No classes yet. <a href="{{ url_for('teacher.class_new') }}">Create one</a>.</p>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <div class="section-title">{{ icon('clipboard') }} At a glance</div>
+    <div class="table-wrap">
+      <table>
+        <tbody>
+          <tr><td>Questions authored</td><td class="right"><strong>{{ stats.questions }}</strong></td></tr>
+          <tr><td>Total attempts</td><td class="right"><strong>{{ stats.submissions }}</strong></td></tr>
+          <tr><td>Completed attempts</td><td class="right"><strong>{{ stats.completed }}</strong></td></tr>
+          <tr><td>Published exams</td><td class="right"><strong>{{ stats.published }}</strong></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="divider"></div>
+    <p class="tag">{{ icon('shield') }} Live screen monitoring, user management and system settings are handled by administrators.</p>
+  </div>
+</div>
+
+<div class="card">
+  <div class="row-between" style="margin-bottom:12px;">
+    <div class="section-title" style="margin:0;">{{ icon('clock') }} Recent attempts on my exams</div>
+    <a class="btn btn-ghost btn-sm" href="{{ url_for('teacher.results') }}">{{ icon('chart') }} All results</a>
+  </div>
+  {% if recent %}
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>#</th><th>Candidate</th><th>Exam</th><th>Score</th><th>Status</th><th>Started (UTC)</th><th class="right">Details</th></tr></thead>
+      <tbody>
+        {% for s in recent %}
+        <tr>
+          <td>{{ s.id }}</td>
+          <td>{{ names.get(s.student_id, 'User #' ~ s.student_id) }}</td>
+          <td>{{ s.exam.title }}</td>
+          <td>{% if s.score is not none %}{{ s.score }}/{{ s.total }}{% else %}<span class="muted">—</span>{% endif %}</td>
+          <td class="status-{{ s.status_label().split(' ')[0] }}">{{ s.status_label() }}</td>
+          <td class="muted">{{ s.started_at.strftime('%Y-%m-%d %H:%M') if s.started_at else '—' }}</td>
+          <td class="right"><a class="btn btn-sm btn-ghost" href="{{ url_for('teacher.submission_detail', sub_id=s.id) }}">{{ icon('eye') }} View</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="empty">No attempts on your exams yet.</p>
+  {% endif %}
+</div>
+{% endblock %}

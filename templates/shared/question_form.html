@@ -1,0 +1,22 @@
+{% extends "dash_base.html" %}
+{% from "partials/_macros.html" import icon %}
+{% block title %}Edit question — {{ APP_NAME }}{% endblock %}
+{% block page_title %}Edit question{% endblock %}
+{% block topbar_actions %}<a class="btn btn-ghost" href="{{ url_for(ns ~ '.questions', exam_id=question.exam_id) }}">{{ icon('chevron') }} Back</a>{% endblock %}
+{% block dash %}
+<div class="card" style="max-width:800px;">
+  <form method="POST" novalidate>
+    {{ form.hidden_tag() }}
+    <div class="form-group">{{ form.text.label }} {{ form.text(rows=2) }}
+      {% for e in form.text.errors %}<div class="field-error">{{ e }}</div>{% endfor %}</div>
+    <div class="two-col">
+      <div class="form-group">{{ form.option_a.label }} {{ form.option_a() }}</div>
+      <div class="form-group">{{ form.option_b.label }} {{ form.option_b() }}</div>
+      <div class="form-group">{{ form.option_c.label }} {{ form.option_c() }}</div>
+      <div class="form-group">{{ form.option_d.label }} {{ form.option_d() }}</div>
+    </div>
+    <div class="form-group" style="max-width:240px;">{{ form.correct_answer.label }} {{ form.correct_answer() }}</div>
+    <button type="submit">{{ icon('check') }} Save changes</button>
+  </form>
+</div>
+{% endblock %}

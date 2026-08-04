@@ -1,0 +1,183 @@
+{% extends "dash_base.html" %}
+{% from "partials/_macros.html" import icon %}
+{% block title %}Live wall — {{ APP_NAME }}{% endblock %}
+{% block page_title %}Live wall{% endblock %}
+{% block topbar_actions %}
+<a class="btn btn-ghost" href="{{ url_for('admin.monitor') }}">{{ icon('activity') }} Monitor table</a>
+{% endblock %}
+{% block dash %}
+
+<div class="card">
+  <div class="row-between" style="flex-wrap:wrap; gap:12px;">
+    <div class="meta-row">
+      <span>{{ icon('eye') }} <strong id="wallCount">0</strong> candidate(s) in progress</span>
+      <span class="live-dot">{{ icon('activity') }} <span id="wallState">Connecting…</span></span>
+      <span class="tag">Passive view — the candidate is not notified and is not interrupted.</span>
+    </div>
+    <div class="toolbar" style="margin:0;">
+      <form method="GET" id="filterForm">
+        <select name="exam_id" onchange="this.form.submit()">
+          <option value="">All exams</option>
+          {% for e in exams %}
+          <option value="{{ e.id }}" {{ 'selected' if exam_id == e.id }}>{{ e.title }}</option>
+          {% endfor %}
+        </select>
+      </form>
+      <label class="checkbox-row" style="margin:0; white-space:nowrap;">
+        <input type="checkbox" id="showCam" checked> <span>Show webcam</span>
+      </label>
+      <select id="refreshRate">
+        <option value="1500" selected>Refresh 1.5s</option>
+        <option value="3000">Refresh 3s</option>
+        <option value="6000">Refresh 6s</option>
+      </select>
+    </div>
+  </div>
+</div>
+
+<div id="wallGrid" class="wall-grid"></div>
+<p class="empty" id="wallEmpty" style="display:none;">
+  No exam is in progress right now. Tiles appear automatically as candidates begin.
+</p>
+
+<script>
+(function () {
+  "use strict";
+
+  var FEED = "{{ url_for('api.live_wall_feed') }}{{ '?exam_id=' ~ exam_id if exam_id else '' }}";
+  var grid = document.getElementById("wallGrid");
+  var empty = document.getElementById("wallEmpty");
+  var countEl = document.getElementById("wallCount");
+  var stateEl = document.getElementById("wallState");
+  var camToggle = document.getElementById("showCam");
+  var rateSel = document.getElementById("refreshRate");
+  var timer = null;
+  var tiles = {};   // submission_id -> DOM node
+
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+
+  function fmtTime(sec) {
+    if (!sec) return "—";
+    return Math.floor(sec / 60) + "m " + (sec % 60) + "s";
+  }
+
+  function badgeClass(status) {
+    if (status === "High Risk") return "badge-warning";
+    if (status === "Disconnected" || status === "Locked") return "badge-danger";
+    return "badge-success";
+  }
+
+  function buildTile(row) {
+    var el = document.createElement("div");
+    el.className = "wall-tile card";
+    el.innerHTML =
+      '<a class="wall-shot" href="' + row.detail_url + '" title="Open full live view">' +
+        '<img class="wall-screen" alt="">' +
+        '<div class="wall-wait">Waiting for screen…</div>' +
+        '<img class="wall-cam" alt="">' +
+        '<span class="wall-live"><span class="rec-dot"></span>LIVE</span>' +
+      "</a>" +
+      '<div class="wall-meta">' +
+        '<div class="wall-name"></div>' +
+        '<div class="wall-sub"></div>' +
+        '<div class="wall-tags">' +
+          '<span class="badge wall-status"></span>' +
+          '<span class="tag wall-viol"></span>' +
+          '<span class="tag wall-time"></span>' +
+        "</div>" +
+      "</div>";
+    return el;
+  }
+
+  function paint(el, row, stamp) {
+    var screen = el.querySelector(".wall-screen");
+    var wait = el.querySelector(".wall-wait");
+    var cam = el.querySelector(".wall-cam");
+    var liveTag = el.querySelector(".wall-live");
+
+    if (row.has_screen) {
+      screen.src = row.screen_url + "?t=" + stamp;
+      screen.style.display = "block";
+      wait.style.display = "none";
+      liveTag.style.display = "flex";
+    } else {
+      screen.style.display = "none";
+      wait.style.display = "flex";
+      liveTag.style.display = "none";
+    }
+
+    if (row.has_cam && camToggle.checked) {
+      cam.src = row.cam_url + "?t=" + stamp;
+      cam.style.display = "block";
+    } else {
+      cam.style.display = "none";
+    }
+
+    el.querySelector(".wall-name").textContent = row.student;
+    el.querySelector(".wall-sub").textContent = row.exam;
+    var st = el.querySelector(".wall-status");
+    st.textContent = row.status;
+    st.className = "badge wall-status " + badgeClass(row.status);
+    el.querySelector(".wall-viol").textContent = row.violations + " viol. (sev " + row.severity + ")";
+    el.querySelector(".wall-time").textContent = fmtTime(row.remaining);
+    el.classList.toggle("risk", row.status === "High Risk");
+  }
+
+  function tick() {
+    fetch(FEED, { cache: "no-store" })
+      .then(function (r) { return r.json(); })
+      .then(function (rows) {
+        stateEl.textContent = "LIVE";
+        stateEl.style.color = "var(--success)";
+        countEl.textContent = rows.length;
+        empty.style.display = rows.length ? "none" : "block";
+
+        var seen = {};
+        var stamp = Date.now();
+        rows.forEach(function (row) {
+          seen[row.submission_id] = true;
+          var el = tiles[row.submission_id];
+          if (!el) {
+            el = buildTile(row);
+            tiles[row.submission_id] = el;
+            grid.appendChild(el);
+          }
+          paint(el, row, stamp);
+        });
+        // Drop tiles for attempts that finished.
+        Object.keys(tiles).forEach(function (id) {
+          if (!seen[id]) {
+            grid.removeChild(tiles[id]);
+            delete tiles[id];
+          }
+        });
+        // Keep the riskiest candidates first.
+        rows.forEach(function (row) { grid.appendChild(tiles[row.submission_id]); });
+      })
+      .catch(function () {
+        stateEl.textContent = "Reconnecting…";
+        stateEl.style.color = "var(--muted)";
+      });
+  }
+
+  function schedule() {
+    if (timer) clearInterval(timer);
+    timer = setInterval(tick, parseInt(rateSel.value, 10));
+  }
+
+  rateSel.addEventListener("change", schedule);
+  // Pause polling when the tab is hidden — saves bandwidth, changes nothing for the student.
+  document.addEventListener("visibilitychange", function () {
+    if (document.hidden) { clearInterval(timer); timer = null; }
+    else { tick(); schedule(); }
+  });
+
+  tick();
+  schedule();
+})();
+</script>
+{% endblock %}

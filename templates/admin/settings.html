@@ -1,0 +1,35 @@
+{% extends "dash_base.html" %}
+{% from "partials/_macros.html" import icon %}
+{% block title %}Settings — {{ APP_NAME }}{% endblock %}
+{% block page_title %}Settings{% endblock %}
+{% block dash %}
+<div class="card" style="max-width:720px;">
+  <div class="section-title">{{ icon('settings') }} Proctoring policy</div>
+  <p class="card-sub">These apply globally. Individual exams can override the violation limit and pass mark.</p>
+  <form method="POST" novalidate>
+    {{ form.hidden_tag() }}
+    <div class="two-col">
+      <div class="form-group">{{ form.max_violations.label }} {{ form.max_violations() }}
+        <div class="helper-text">Cumulative violation severity that auto-terminates an attempt.</div>
+        {% for e in form.max_violations.errors %}<div class="field-error">{{ e }}</div>{% endfor %}</div>
+      <div class="form-group">{{ form.pass_mark.label }} {{ form.pass_mark() }}
+        {% for e in form.pass_mark.errors %}<div class="field-error">{{ e }}</div>{% endfor %}</div>
+    </div>
+    <div class="two-col">
+      <div class="form-group">{{ form.risk_window_seconds.label }} {{ form.risk_window_seconds() }}
+        {% for e in form.risk_window_seconds.errors %}<div class="field-error">{{ e }}</div>{% endfor %}</div>
+      <div class="form-group">{{ form.risk_window_threshold.label }} {{ form.risk_window_threshold() }}
+        <div class="helper-text">Violations within the window before flagging "High risk".</div>
+        {% for e in form.risk_window_threshold.errors %}<div class="field-error">{{ e }}</div>{% endfor %}</div>
+    </div>
+    <div class="two-col">
+      <div class="form-group">{{ form.snapshot_interval.label }} {{ form.snapshot_interval() }}
+        <div class="helper-text">Set to 0 to disable webcam snapshots.</div>
+        {% for e in form.snapshot_interval.errors %}<div class="field-error">{{ e }}</div>{% endfor %}</div>
+      <div class="form-group">{{ form.heartbeat_timeout.label }} {{ form.heartbeat_timeout() }}
+        {% for e in form.heartbeat_timeout.errors %}<div class="field-error">{{ e }}</div>{% endfor %}</div>
+    </div>
+    <button type="submit">{{ icon('check') }} Save settings</button>
+  </form>
+</div>
+{% endblock %}

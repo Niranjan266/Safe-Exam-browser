@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Add Questions - SafeExam</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+
+    <style>
+        .form-card {
+            max-width: 800px;
+            margin: auto;
+        }
+
+        .form-group {
+            margin-bottom: 18px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 6px;
+            font-weight: 600;
+            color: #94a3b8;
+        }
+
+        .form-group input,
+        .form-group textarea,
+        .form-group select {
+            width: 100%;
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid #334155;
+            background: #0f172a;
+            color: white;
+        }
+
+        .form-group input:focus,
+        .form-group textarea:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #3b82f6;
+        }
+
+        .options-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        .submit-btn {
+            width: 100%;
+            margin-top: 15px;
+        }
+
+        .question-counter {
+            margin-bottom: 20px;
+            color: #94a3b8;
+            font-size: 14px;
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="layout">
+
+    <!-- ================= SIDEBAR ================= -->
+    <div class="sidebar">
+        <h2>SafeExam</h2>
+        <a href="/admin">🏠 Dashboard</a>
+        <a href="/create_exam">📝 Create Exam</a>
+        <a href="/monitor">📊 Live Monitor</a>
+        <a href="/logout">🚪 Logout</a>
+    </div>
+
+    <!-- ================= MAIN CONTENT ================= -->
+    <div class="main">
+
+        <div class="card form-card">
+            <h3>Add Question</h3>
+
+            <div class="question-counter">
+                Add multiple questions for this exam.
+            </div>
+
+            <form method="POST">
+
+                <div class="form-group">
+                    <label>Question</label>
+                    <textarea name="question" rows="3" placeholder="Enter your question here..." required></textarea>
+                </div>
+
+                <div class="options-grid">
+
+                    <div class="form-group">
+                        <label>Option A</label>
+                        <input type="text" name="option_a" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Option B</label>
+                        <input type="text" name="option_b" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Option C</label>
+                        <input type="text" name="option_c" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Option D</label>
+                        <input type="text" name="option_d" required>
+                    </div>
+
+                </div>
+
+                <div class="form-group">
+                    <label>Correct Answer</label>
+                    <select name="correct_answer" required>
+                        <option value="">Select correct option</option>
+                        <option value="A">Option A</option>
+                        <option value="B">Option B</option>
+                        <option value="C">Option C</option>
+                        <option value="D">Option D</option>
+                    </select>
+                </div>
+
+                <button class="submit-btn" type="submit">
+                    ➕ Add Question
+                </button>
+
+            </form>
+
+        </div>
+
+    </div>
+</div>
+
+</body>
+</html>

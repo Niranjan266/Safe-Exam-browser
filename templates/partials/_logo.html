@@ -1,0 +1,17 @@
+{# Custom SafeExam logo glyph + wordmark (reusable macros) #}
+{% macro logo_mark(cls='') %}
+{% set gid = 'lg' ~ (range(100000, 999999) | random) %}
+<svg class="logo-mark {{ cls }}" viewBox="0 0 48 48" fill="none" aria-hidden="true">
+  <defs>
+    <linearGradient id="{{ gid }}" x1="7" y1="3" x2="41" y2="45" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#4f7cff"/><stop offset=".55" stop-color="#6366f1"/><stop offset="1" stop-color="#8b5cf6"/>
+    </linearGradient>
+  </defs>
+  <path d="M24 3.2 7.5 9.1v12.8C7.5 33.2 15.4 41.4 24 44.4c8.6-3 16.5-11.2 16.5-22.5V9.1L24 3.2Z" fill="url(#{{ gid }})"/>
+  <path d="M24 3.2 7.5 9.1v6.4C12 12 17.7 10.2 24 10.2s12 1.8 16.5 5.3V9.1L24 3.2Z" fill="#fff" opacity=".12"/>
+  <path d="M15.8 24.3l5.4 5.5L32.6 18" stroke="#fff" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="24" cy="35.4" r="1.7" fill="#fff" opacity=".9"/>
+</svg>
+{% endmacro %}
+
+{% macro wordmark() %}<span class="wm">Safe<span class="wm-accent">Exam</span></span>{% endmacro %}

@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% from "partials/_macros.html" import icon %}
+{% block title %}{{ exam.title }} — {{ APP_NAME }}{% endblock %}
+{% block head %}<style>body { user-select: none; }</style>{% endblock %}
+{% block body %}
+
+<div class="overlay" id="startGate">
+  <div class="panel">
+    <div class="big-ic">{{ icon('shield-check') }}</div>
+    <h2>{{ exam.title }}</h2>
+    <p>You are about to enter a secure, locked-down exam. The page will switch to full screen and your activity will be monitored.</p>
+    <div class="checklist">
+      <div>{{ icon('alert') }} Leaving full screen, switching tabs, copying, pasting and right-clicking are recorded as violations.</div>
+      <div>{{ icon('lock') }} After {{ exam.max_violations or policy.max_violations }} violations the attempt is terminated automatically.</div>
+      {% if policy.snapshot_interval > 0 %}<div>{{ icon('camera') }} Your webcam may capture periodic snapshots for proctor review.</div>{% endif %}
+      <div>{{ icon('maximize') }} You will be asked to share your screen so a proctor can monitor your session live.</div>
+      <div>{{ icon('clock') }} You have {{ (seconds_remaining // 60) }} min {{ (seconds_remaining % 60) }} s remaining. Timing is enforced by the server.</div>
+    </div>
+    <button id="startBtn">{{ icon('maximize') }} Enter secure mode &amp; begin</button>
+  </div>
+</div>
+
+<div id="warningBox"></div>
+
+<div class="exam-shell">
+  <div class="exam-topbar">
+    <div class="exam-name">{{ icon('shield-check') }} {{ exam.title }}</div>
+    <div class="exam-meta">
+      <div class="pill timer">{{ icon('clock') }} <span id="timer">--:--</span></div>
+      <div class="pill viol">{{ icon('alert') }} <span id="violationCount">0</span> / {{ exam.max_violations or policy.max_violations }}</div>
+    </div>
+  </div>
+
+  <form method="POST" id="examForm" action="{{ url_for('student.submit_exam', exam_id=exam.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    {% for question in questions %}
+    <div class="question-card">
+      <p class="q-text"><span class="q-index">{{ loop.index }}.</span>{{ question.text }}</p>
+      {% for value, label in question.options() %}
+      <label class="option-label {{ 'selected' if saved.get(question.id) == value }}">
+        <input type="radio" name="{{ question.id }}" value="{{ value }}" {{ 'checked' if saved.get(question.id) == value }}>
+        <span><strong>{{ value }}.</strong> {{ label }}</span>
+      </label>
+      {% endfor %}
+    </div>
+    {% endfor %}
+
+    <button type="submit" class="btn-block" style="margin-top:10px;">{{ icon('check') }} Submit exam</button>
+    <p class="tag center" style="margin-top:10px;">Your answers are saved automatically as you go.</p>
+  </form>
+</div>
+
+<script>
+  window.SEB = {
+    examId: {{ exam.id }},
+    secondsRemaining: {{ seconds_remaining }},
+    maxViolations: {{ exam.max_violations or policy.max_violations }},
+    snapshotInterval: {{ policy.snapshot_interval }},
+    urls: {
+      state:     "{{ url_for('api.exam_state', exam_id=exam.id) }}",
+      violation: "{{ url_for('api.log_violation', exam_id=exam.id) }}",
+      answer:    "{{ url_for('api.save_answer', exam_id=exam.id) }}",
+      heartbeat: "{{ url_for('api.heartbeat', exam_id=exam.id) }}",
+      snapshot:  "{{ url_for('api.upload_snapshot', exam_id=exam.id) }}",
+      live:      "{{ url_for('api.live_frame', exam_id=exam.id) }}",
+      submit:    "{{ url_for('student.submit_exam', exam_id=exam.id) }}",
+      locked:    "{{ url_for('student.locked', exam_id=exam.id) }}",
+      result:    "{{ url_for('student.result', exam_id=exam.id) }}"
+    }
+  };
+</script>
+<script src="{{ url_for('static', filename='js/timer.js') }}"></script>
+<script src="{{ url_for('static', filename='js/security.js') }}"></script>
+<script src="{{ url_for('static', filename='js/monitoring.js') }}"></script>
+<script src="{{ url_for('static', filename='js/exam.js') }}"></script>
+{% endblock %}

@@ -1,0 +1,21 @@
+{% from "partials/_macros.html" import icon %}
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+  <div class="toast-stack" id="toastStack">
+    {% for category, message in messages %}
+    {% set cat = category if category in ['success','danger','warning','info'] else 'info' %}
+    <div class="toast {{ cat }}" role="alert">
+      <span class="t-ic">{{ icon('check' if cat == 'success' else 'alert' if cat in ['danger','warning'] else 'shield-check') }}</span>
+      <span class="t-msg">{{ message }}</span>
+      <button type="button" class="t-close" aria-label="Dismiss" onclick="this.parentElement.remove()">{{ icon('x', 'ic-sm') }}</button>
+    </div>
+    {% endfor %}
+  </div>
+  <script>
+    setTimeout(function () {
+      var s = document.getElementById('toastStack');
+      if (s) s.querySelectorAll('.toast').forEach(function (t) { t.remove(); });
+    }, 5800);
+  </script>
+  {% endif %}
+{% endwith %}

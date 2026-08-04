@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% from "partials/_macros.html" import icon %}
+{% block body %}
+<div class="layout">
+    {% include "partials/_sidebar.html" %}
+    <div class="main">
+        <header class="topbar">
+            <div class="topbar-left">
+                <h1 class="topbar-title">{% block page_title %}{{ APP_NAME }}{% endblock %}</h1>
+                {% block page_sub %}{% endblock %}
+            </div>
+            <div class="topbar-right">
+                {% block topbar_actions %}{% endblock %}
+                <div class="user-chip">
+                    <div class="avatar">{{ (current_user.full_name or current_user.username)[:1]|upper }}</div>
+                    <div class="who">
+                        <span class="name">{{ current_user.full_name or current_user.username }}</span>
+                        <span class="role">{{ current_user.role|capitalize }}</span>
+                    </div>
+                </div>
+            </div>
+        </header>
+        <div class="content">
+            {% include "partials/_flashes.html" %}
+            {% block dash %}{% endblock %}
+        </div>
+    </div>
+</div>
+{% endblock %}

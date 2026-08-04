@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Student Dashboard - SafeExam</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+
+    <style>
+        .welcome-card {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .exam-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .exam-card {
+            background: #1e293b;
+            padding: 20px;
+            border-radius: 14px;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+            transition: 0.3s ease;
+        }
+
+        .exam-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .exam-card h4 {
+            margin-bottom: 10px;
+        }
+
+        .exam-card p {
+            color: #94a3b8;
+            margin-bottom: 15px;
+        }
+
+        .exam-card button {
+            width: 100%;
+        }
+
+    </style>
+</head>
+
+<body>
+
+<div class="layout">
+
+    <!-- ================= SIDEBAR ================= -->
+    <div class="sidebar">
+        <h2>SafeExam</h2>
+
+        <a href="/student">🏠 Dashboard</a>
+        <a href="/logout">🚪 Logout</a>
+    </div>
+
+    <!-- ================= MAIN CONTENT ================= -->
+    <div class="main">
+
+        <!-- Welcome Section -->
+        <div class="card welcome-card">
+            <div>
+                <h2>Welcome, {{ current_user.username }} 👋</h2>
+                <p style="color: var(--muted); margin-top: 8px;">
+                    Stay focused. Complete your exams securely.
+                </p>
+            </div>
+
+            <span class="badge badge-success">
+                Secure Mode Active
+            </span>
+        </div>
+
+        <!-- Available Exams -->
+        <div class="card">
+            <h3>Available Exams</h3>
+
+            {% if exams %}
+                <div class="exam-grid">
+
+                    {% for exam in exams %}
+                        <div class="exam-card">
+                            <h4>{{ exam.title }}</h4>
+                            <p>
+                                Duration: {{ exam.duration }} minutes
+                            </p>
+
+                            <a href="/start_exam/{{ exam.id }}">
+                                <button>Start Exam</button>
+                            </a>
+                        </div>
+                    {% endfor %}
+
+                </div>
+            {% else %}
+                <p style="color: var(--muted); margin-top: 15px;">
+                    No exams available at the moment.
+                </p>
+            {% endif %}
+
+        </div>
+
+    </div>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,36 @@
+{% extends "dash_base.html" %}
+{% from "partials/_macros.html" import icon %}
+{% block title %}My exams — {{ APP_NAME }}{% endblock %}
+{% block page_title %}My exams{% endblock %}
+{% block topbar_actions %}<span class="badge badge-success">{{ icon('shield-check') }} Secure mode ready</span>{% endblock %}
+{% block dash %}
+<div class="card">
+  <div class="section-title">{{ icon('file') }} Available exams</div>
+  {% if cards %}
+  <div class="grid cols-3" style="margin-top:6px;">
+    {% for c in cards %}
+    <div class="card" style="margin:0;">
+      <div class="row-between">
+        <h4>{{ c.exam.title }}</h4>
+        <span class="badge {{ 'badge-success' if c.availability == 'Open' else 'badge-warning' if c.availability in ['Scheduled','Draft'] else 'badge-danger' }}">{{ c.availability }}</span>
+      </div>
+      <p class="muted" style="margin:10px 0; min-height:38px;">{{ c.exam.description or 'No description provided.' }}</p>
+      <div class="meta-row" style="margin-bottom:14px;">
+        <span>{{ icon('clock') }} {{ c.exam.duration }} min</span>
+        <span>{{ icon('list') }} {{ c.exam.question_count }} questions</span>
+      </div>
+      {% if c.completed %}
+        <a class="btn btn-ghost btn-block" href="{{ url_for('student.result', exam_id=c.exam.id) }}">{{ icon('award') }} Result · {{ c.completed.score }}/{{ c.completed.total }}</a>
+      {% elif c.available %}
+        <a class="btn btn-block" href="{{ url_for('student.start_exam', exam_id=c.exam.id) }}">{{ icon('play') }} {{ 'Resume exam' if c.in_progress else 'Start exam' }}</a>
+      {% else %}
+        <button class="btn-block" disabled>Not available</button>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="empty">No exams are available right now. Please check back later.</p>
+  {% endif %}
+</div>
+{% endblock %}

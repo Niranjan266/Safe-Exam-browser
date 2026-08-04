@@ -1,0 +1,55 @@
+{% extends "dash_base.html" %}
+{% from "partials/_macros.html" import icon %}
+{% block title %}Classes — {{ APP_NAME }}{% endblock %}
+{% block page_title %}Classes &amp; subjects{% endblock %}
+{% block topbar_actions %}
+<a class="btn" href="{{ url_for(ns ~ '.class_new') }}">{{ icon('plus') }} New class</a>
+{% endblock %}
+{% block dash %}
+<div class="card">
+  {% if classes %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Class</th><th>Subject</th><th>Code</th><th>Section</th><th>Year</th>
+          {% if current_user.is_admin %}<th>Teacher</th>{% endif %}
+          <th>Exams</th><th>Status</th><th class="right">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in classes %}
+        <tr>
+          <td><strong>{{ c.name }}</strong></td>
+          <td>{{ c.subject_name }}</td>
+          <td><span class="badge badge-muted">{{ c.subject_code }}</span></td>
+          <td>{{ c.section or '—' }}</td>
+          <td class="muted">{{ c.academic_year or '—' }}</td>
+          {% if current_user.is_admin %}
+          <td class="muted">{{ c.teacher.full_name or c.teacher.username if c.teacher else 'Unassigned' }}</td>
+          {% endif %}
+          <td>{{ c.exam_count }}</td>
+          <td><span class="badge {{ 'badge-success' if c.active else 'badge-warning' }}">{{ 'Active' if c.active else 'Archived' }}</span></td>
+          <td class="right">
+            <div class="btn-row" style="justify-content:flex-end;">
+              <a class="btn btn-sm btn-ghost" href="{{ url_for(ns ~ '.class_edit', class_id=c.id) }}" title="Edit">{{ icon('edit') }}</a>
+              <form class="inline-form" method="POST" action="{{ url_for(ns ~ '.class_toggle', class_id=c.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="btn btn-sm {{ 'btn-warning' if c.active else 'btn-success' }}">{{ 'Archive' if c.active else 'Activate' }}</button>
+              </form>
+              <form class="inline-form" method="POST" action="{{ url_for(ns ~ '.class_delete', class_id=c.id) }}" onsubmit="return confirm('Delete this class?');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="btn btn-sm btn-danger" title="Delete">{{ icon('trash') }}</button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="empty">No classes yet. <a href="{{ url_for(ns ~ '.class_new') }}">Create your first class</a>.</p>
+  {% endif %}
+</div>
+{% endblock %}
