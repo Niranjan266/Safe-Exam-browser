@@ -16,7 +16,7 @@ handling, webcam-snapshot proctoring and exportable reports.
 
 **Authentication & roles**
 - Register / login / logout with hashed passwords (Werkzeug) and Flask-Login.
-- Two roles: **admin/proctor** and **student**, enforced by decorators.
+- Three roles: **admin/proctor**, **teacher** and **student**, enforced by decorators.
 - CSRF protection on every form (Flask-WTF).
 
 **For admins / proctors**
@@ -30,6 +30,10 @@ handling, webcam-snapshot proctoring and exportable reports.
   snapshot interval, heartbeat timeout, default pass mark) from the UI.
 - **Live monitor** — real-time candidate status, violations, time remaining, snapshot
   counts; lock / unlock / disqualify with one click.
+- **Live wall** — every in-progress candidate's screen as a self-refreshing grid,
+  with webcam inset, status, violation count and time left. Riskiest first. Click a
+  tile for the full-size view. Purely passive: it reads frames the exam page already
+  uploads, so the candidate is never notified and never interrupted.
 - **Live screen monitoring** — open any in-progress attempt and watch the candidate's
   **shared screen and webcam in near real time** from the proctor panel (frames stream
   every ~1.5s). Reachable from the monitor table ("Live") and the attempt detail page.
@@ -42,6 +46,16 @@ handling, webcam-snapshot proctoring and exportable reports.
 
 The interface uses a clean, professional design with an inline SVG icon set (no emoji)
 and renders fully offline — no external icon fonts or image requests.
+
+**For teachers**
+- Own portal at `/teacher` with a dashboard of their classes, exams and results.
+- **Classes** — create and maintain classes with class name, subject name,
+  subject code, section, academic year and description; exams can be linked to one.
+- **Exam authoring** — create, edit, publish, duplicate and delete their *own*
+  exams and questions (including CSV bulk import).
+- **Results** — scores, statistics, item analysis and CSV export for their own exams.
+- Deliberately **cannot** watch live screens, manage users, change settings, read
+  the audit log, or touch another teacher's exams or classes.
 
 **For students**
 - Dashboard of available exams with status (open / scheduled / completed).
@@ -76,17 +90,23 @@ Safe-Exam-browser/
 ├── safeexam/               # application package
 │   ├── __init__.py         # application factory
 │   ├── extensions.py       # db, login_manager, csrf
-│   ├── models.py           # User, Exam, Question, Submission, Answer, Violation, ProctorSnapshot
+│   ├── models.py           # User, SchoolClass, Exam, Question, Submission, Answer,
+│   │                       #   Violation, ProctorSnapshot, LiveFrame, AppSetting, AuditLog
 │   ├── forms.py            # Flask-WTF forms
-│   ├── decorators.py       # admin_required / student_required
+│   ├── decorators.py       # admin_required / teacher_required / student_required
 │   ├── proctoring.py       # violation severity + risk/termination rules
+│   ├── framestore.py       # live frames + snapshots: disk or database backend
+│   ├── turso.py            # Turso/libSQL dialect for serverless deployments
 │   ├── services.py         # attempt lifecycle + grading
-│   └── blueprints/         # auth · student · admin · api
-├── templates/              # Jinja2 templates (base, auth, student, admin, errors, partials)
+│   └── blueprints/         # auth · student · teacher · admin · api
+├── api/index.py            # Vercel serverless entry point
+├── scripts/init_db.py      # create schema + seed (run once against Turso)
+├── vercel.json             # Vercel routing
+├── DEPLOY.md               # deployment guide (Vercel/Turso and normal servers)
+├── templates/              # Jinja2 (base, auth, student, teacher, admin, shared, errors)
 ├── static/                 # style.css + js (timer, security, monitoring, exam, live_monitor)
 ├── tests/                  # pytest suite
-├── instance/               # created at runtime: SQLite DB + uploaded snapshots
-└── legacy_flask_backup/    # the original single-file app, preserved
+└── instance/               # created at runtime: SQLite DB + uploaded snapshots
 ```
 
 ---
@@ -113,7 +133,7 @@ python seed.py
 python app.py
 ```
 
-Open **http://127.0.0.1:5000/**.
+Open **http://127.0.0.1:5001/**. Override with `SEB_PORT` / `SEB_HOST`.
 
 > **Upgrading from an earlier build?** The schema has grown (user activation,
 > pass marks, settings, audit log). On startup the app **auto-adds any missing
@@ -123,10 +143,13 @@ Open **http://127.0.0.1:5000/**.
 
 ### Demo accounts (after `python seed.py`)
 
-| Role    | Username  | Password    |
-|---------|-----------|-------------|
-| Admin   | `admin`   | `admin123`  |
-| Student | `student` | `student123`|
+| Role    | Username  | Password     |
+|---------|-----------|--------------|
+| Admin   | `admin`   | `admin123`   |
+| Teacher | `teacher` | `teacher123` |
+| Student | `student` | `student123` |
+
+> These are demo credentials. **Change them before exposing the app to anyone.**
 
 A published **"Sample Aptitude Test"** (5 questions) is created so you can try the
 full flow immediately: sign in as the student, take the exam, then sign in as the
@@ -145,6 +168,14 @@ admin to watch the live monitor and export a report.
 | `SEB_RISK_WINDOW_SECONDS` / `SEB_RISK_WINDOW_THRESHOLD` | `30` / `2` | "High-risk" burst detection. |
 | `SEB_SNAPSHOT_INTERVAL` | `20` | Seconds between webcam snapshots (`0` disables). |
 | `SEB_SECURE_COOKIES` | `0` | Set `1` when served over HTTPS. |
+| `SEB_TURSO_URL` | – | Turso/libSQL database URL (serverless deployments) |
+| `SEB_TURSO_TOKEN` | – | Turso auth token |
+| `SEB_FRAME_STORAGE` | `db` if Turso else `disk` | Where live frames + snapshots are stored |
+| `SEB_ALLOWED_HOSTS` | empty in dev | Comma-separated Host allowlist (empty = allow all) |
+| `SEB_INIT_DB` | `1` | Create tables on startup; set `0` in serverless production |
+| `SEB_HOST` / `SEB_PORT` | `127.0.0.1` / `5001` | Dev server bind address |
+
+See **[DEPLOY.md](DEPLOY.md)** for deploying to Vercel + Turso, or to a normal server.
 
 ---
 
