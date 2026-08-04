@@ -100,11 +100,15 @@ class ProductionConfig(Config):
     SESSION_COOKIE_SECURE = _bool(os.environ.get("SEB_SECURE_COOKIES"), True)
     # In production the allowlist defaults to the deployed hostnames; override
     # with SEB_ALLOWED_HOSTS. Localhost stays allowed so health checks work.
+    # A leading dot matches any subdomain, so ".vercel.app" covers both the
+    # production URL and the per-commit preview URLs Vercel generates (their
+    # exact names are not known ahead of time). Pin this to an explicit list
+    # with SEB_ALLOWED_HOSTS once a custom domain is the only entry point.
     ALLOWED_HOSTS = _csv(
         os.environ.get("SEB_ALLOWED_HOSTS"),
         default=(
             "exam.niranjand.in",
-            "safe-exam-browser.vercel.app",
+            ".vercel.app",
             "localhost",
             "127.0.0.1",
         ),

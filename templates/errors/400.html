@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% from "partials/_macros.html" import icon %}
+{% block title %}Bad request — {{ APP_NAME }}{% endblock %}
+{% block body %}
+<div class="result-center">
+  <div class="result-card">
+    <div class="big-ic danger">{{ icon('alert', 'ic-xl') }}</div>
+    <h2>400 — Bad request</h2>
+    <p class="muted" style="margin:10px 0 22px;">
+      {{ description or "The server could not process this request." }}
+    </p>
+    {% if host_blocked %}
+    <p class="tag" style="margin-bottom:22px;">
+      This address is not on the allowed-hosts list. An administrator can add it
+      to <code>SEB_ALLOWED_HOSTS</code>.
+    </p>
+    {% endif %}
+    <a class="btn" href="{{ url_for('auth.login') }}">{{ icon('chevron') }} Go to sign in</a>
+  </div>
+</div>
+{% endblock %}

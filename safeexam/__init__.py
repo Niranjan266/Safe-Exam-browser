@@ -178,6 +178,18 @@ def _register_blueprints(app):
 
 
 def _register_errorhandlers(app):
+    @app.errorhandler(400)
+    def bad_request(e):
+        description = getattr(e, "description", "") or ""
+        return (
+            render_template(
+                "errors/400.html",
+                description=description,
+                host_blocked="not an allowed host" in description,
+            ),
+            400,
+        )
+
     @app.errorhandler(403)
     def forbidden(e):
         return render_template("errors/403.html"), 403
