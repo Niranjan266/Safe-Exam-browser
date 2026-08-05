@@ -349,7 +349,9 @@ canvas { max-width: 100%; }
 
 /* ===================== Live wall (admin multi-student view) ===================== */
 .wall-grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); }
-.wall-tile { padding: 0; overflow: hidden; transition: border-color .2s, box-shadow .2s; }
+/* No entry animation: tiles are re-ordered live, and a re-appended node would
+   restart the animation and leave the screenshot stuck mid-fade. */
+.wall-tile { padding: 0; overflow: hidden; animation: none; transition: border-color .2s, box-shadow .2s; }
 .wall-tile.risk { border-color: var(--danger); box-shadow: 0 0 0 2px rgba(239, 68, 68, .18); }
 
 .wall-shot { position: relative; display: block; background: #0d1526; aspect-ratio: 16 / 10; overflow: hidden; }

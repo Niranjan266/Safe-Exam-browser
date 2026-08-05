@@ -52,7 +52,8 @@
   var camToggle = document.getElementById("showCam");
   var rateSel = document.getElementById("refreshRate");
   var timer = null;
-  var tiles = {};   // submission_id -> DOM node
+  var tiles = {};       // submission_id -> DOM node
+  var lastOrder = "";   // guards against needless re-ordering (see tick)
 
   function esc(s) {
     return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
@@ -160,8 +161,15 @@
             delete tiles[id];
           }
         });
-        // Keep the riskiest candidates first.
-        rows.forEach(function (row) { grid.appendChild(tiles[row.submission_id]); });
+        // Keep the riskiest candidates first — but only touch the DOM when the
+        // order actually changed. Re-appending a node restarts its CSS entry
+        // animation, so doing this every refresh left every tile stuck
+        // permanently mid-fade and the screen never became visible.
+        var desired = rows.map(function (r) { return r.submission_id; }).join(",");
+        if (desired !== lastOrder) {
+          rows.forEach(function (row) { grid.appendChild(tiles[row.submission_id]); });
+          lastOrder = desired;
+        }
       })
       .catch(function () {
         stateEl.textContent = "Reconnecting…";

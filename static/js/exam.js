@@ -17,7 +17,8 @@
   const gate = document.getElementById("startGate");
   const startBtn = document.getElementById("startBtn");
 
-  let violations = 0;
+  let violations = 0;                       // weighted severity, server-authoritative
+  let limit = SEB.maxViolations || 3;
   let terminated = false;
 
   function showWarning(msg) {
@@ -93,20 +94,36 @@
 
   function handleViolation(type, details) {
     if (terminated) return;
+
+    // Optimistic bump so the badge reacts instantly; the server's weighted
+    // total replaces it as soon as the response lands.
     violations += 1;
-    if (violEl) violEl.textContent = violations;
+    if (violEl) violEl.textContent = Math.min(violations, limit);
 
     const what = describe(type, details);
 
     SEBMonitoring.postJSON(SEB.urls.violation, { type: type, details: details }).then((res) => {
       if (!res) return;
+
+      // The server terminates on a WEIGHTED severity total, not on a raw count
+      // of events — a dev-tools probe is worth more than a stray keystroke.
+      // Showing the local count against that limit made the badge read "10 / 5".
+      if (typeof res.limit === "number") limit = res.limit;
+      if (typeof res.severity === "number") {
+        violations = res.severity;
+        if (violEl) violEl.textContent = Math.min(violations, limit);
+      }
+
+      const score = " (" + Math.min(violations, limit) + "/" + limit + ")";
+
       if (res.terminated) {
+        if (violEl) violEl.textContent = limit;
         showWarning("⛔ " + what + " — violation limit reached, attempt terminated");
         setTimeout(goLocked, 1400);
       } else if (res.status === "high_risk") {
-        showWarning("⚠ " + what + " — flagged as high risk (" + violations + "/" + SEB.maxViolations + ")");
+        showWarning("⚠ " + what + " — flagged as high risk" + score);
       } else {
-        showWarning("⚠ " + what + "  (" + violations + "/" + SEB.maxViolations + ")");
+        showWarning("⚠ " + what + score);
       }
     });
   }

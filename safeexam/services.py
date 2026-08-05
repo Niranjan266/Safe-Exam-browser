@@ -61,6 +61,18 @@ def grade_submission(submission, reason=None, commit=True):
     submission.completed_at = datetime.utcnow()
     if reason and not submission.termination_reason:
         submission.termination_reason = reason
+
+    # The attempt is over, so the "latest live frame" is no longer live. Drop it:
+    # it would otherwise sit on disk indefinitely and — because submission ids can
+    # be reused — could surface under a later candidate's tile.
+    # Webcam snapshots are deliberately kept; they are the reviewable evidence.
+    try:
+        from . import framestore
+
+        framestore.clear_live_frames(submission.id)
+    except Exception:  # never let cleanup block grading
+        pass
+
     if commit:
         db.session.commit()
     return score
