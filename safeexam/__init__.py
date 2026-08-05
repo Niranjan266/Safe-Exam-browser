@@ -35,6 +35,7 @@ def create_app(config_name=None):
     _ensure_dirs(app)
     _register_host_guard(app)
     _init_extensions(app)
+    _register_health(app)
     _register_blueprints(app)
     _register_errorhandlers(app)
     _register_context(app)
@@ -104,6 +105,67 @@ def _configure_database(app):
     turso.register()
     app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite+libsql://"
     app.config["SQLALCHEMY_ENGINE_OPTIONS"] = turso.engine_options()
+
+
+def _register_health(app):
+    """
+    GET /healthz — says which database the app is actually talking to.
+
+    Worth having because the failure it catches is otherwise silent: with no
+    Turso credentials the app falls back to a local SQLite file, which on a
+    read-only serverless host fails with a bare "unable to open database file"
+    on the first query — long after startup, and only on pages that touch the
+    database. Deliberately reports no host, no token and no exception text.
+    """
+    from flask import jsonify
+    from sqlalchemy import text
+
+    @app.route("/healthz")
+    def healthz():
+        from . import turso
+
+        if turso.is_enabled():
+            backend = "turso"
+        elif os.environ.get("SEB_DATABASE_URI"):
+            backend = "external"
+        else:
+            backend = "sqlite-local"
+
+        info = {
+            "status": "ok",
+            "database": backend,
+            "frame_storage": app.config.get("FRAME_STORAGE"),
+        }
+        try:
+            db.session.execute(text("select 1"))
+            info["db_connected"] = True
+        except Exception:
+            db.session.rollback()
+            info["status"] = "error"
+            info["db_connected"] = False
+            if backend == "sqlite-local":
+                info["hint"] = (
+                    "No database is configured. Set SEB_TURSO_URL and SEB_TURSO_TOKEN "
+                    "(or SEB_DATABASE_URI). A local SQLite file cannot be used on a "
+                    "read-only or serverless host."
+                )
+            else:
+                info["hint"] = "The configured database could not be reached."
+        return jsonify(info), (200 if info["status"] == "ok" else 503)
+
+    # Make the misconfiguration obvious in the build/runtime logs too.
+    if not app.debug and backend_is_local_sqlite():
+        app.logger.warning(
+            "SafeExam: no Turso/external database configured — falling back to a local "
+            "SQLite file. On a serverless host this fails on the first query. "
+            "Set SEB_TURSO_URL and SEB_TURSO_TOKEN."
+        )
+
+
+def backend_is_local_sqlite():
+    from . import turso
+
+    return not turso.is_enabled() and not os.environ.get("SEB_DATABASE_URI")
 
 
 def _register_host_guard(app):
