@@ -46,3 +46,7 @@ legacy_flask_backup/
 
 # Office lock files
 ~$*
+
+# A clone of this repo was made inside the working copy; ignore it so it
+# never gets committed as an embedded repository.
+Safe-Exam-browser/
