@@ -145,6 +145,51 @@ export SEB_DATABASE_URI="postgresql+psycopg://user:pass@host:5432/safeexam"
 
 ---
 
+## Screen sharing: why the candidate is always prompted
+
+Every browser requires the user to pick a surface in its own native dialog
+before a page receives their screen. There is no API, permission or origin
+allowlist that lets an ordinary web page capture a screen silently — it is a
+security boundary, not a gap in this app. What SafeExam does instead:
+
+* the picker is defaulted to the **whole monitor** (`displaySurface: "monitor"`)
+* the exam's own tab is hidden from the list (`selfBrowserSurface: "exclude"`)
+* mid-session switching is disabled (`surfaceSwitching: "exclude"`)
+* if the candidate picks a single **tab or window**, the share is rejected and
+  they are asked again — a partial share would hide everything the proctor needs
+* the attempt does not open at all until a whole screen is shared
+
+So it is one dialog, once, at the start; after that the proctor sees the screen
+continuously with no further prompts.
+
+### Removing the prompt on institution-managed machines
+
+If the exam machines are managed by your institution, the picker can be skipped:
+
+**Chrome launched with a switch** (simplest for a lab or kiosk image):
+
+```
+chrome.exe --auto-select-desktop-capture-source="Entire screen"
+```
+
+The value only has to be a substring of the source name, and this is documented
+as a testing/automation switch — pin it to a dedicated exam shortcut or kiosk
+profile rather than the students' everyday browser.
+
+**Chrome Enterprise policies** worth knowing:
+
+| Policy | What it does |
+| --- | --- |
+| `ScreenCaptureAllowedByOrigins` | Lets your origin capture even when `ScreenCaptureAllowed` is disabled. Does **not** remove the picker. |
+| `ScreenCaptureWithoutGestureAllowedForOrigins` | Drops the "must follow a user gesture" requirement. Does **not** remove the picker. |
+| `GetDisplayMediaSetSelectAllScreensAllowedForUrls` | With `autoSelectAllScreens`, captures every screen **without** an explicit prompt. ChromeOS-oriented. |
+
+For a genuinely lock-tight setup, the usual answer is a native kiosk client
+(the real Safe Exam Browser product, or an Electron wrapper using
+`desktopCapturer`), which has OS-level capture rights and no picker at all.
+
+---
+
 ## Environment variables
 
 | Variable | Default | Purpose |

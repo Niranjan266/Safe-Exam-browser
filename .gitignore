@@ -43,3 +43,6 @@ legacy_flask_backup/
 
 # Deploy tooling
 .vercel/
+
+# Office lock files
+~$*

@@ -31,7 +31,10 @@
       this._liveInterval = this._opts.liveInterval || 1500;
       this._startHeartbeat();
       this._startStatePoll();
-      this._startWebcam();
+      // requireWebcam is a per-exam setting. When it is false we never call
+      // getUserMedia at all, so the candidate sees no permission prompt and no
+      // camera indicator. Screen sharing is unaffected.
+      if (this._opts.requireWebcam !== false) this._startWebcam();
       this._startScreen();
       window.addEventListener("beforeunload", () => {
         navigator.sendBeacon && this._beaconHeartbeat();
@@ -118,10 +121,62 @@
         .catch(() => { if (this._opts.onCameraDenied) this._opts.onCameraDenied(); });
     },
 
+    /* ------------------------------------------------------------------
+       Screen share.
+
+       A browser will NOT hand a web page the screen without the user
+       picking a surface in the native dialog — there is no API that
+       bypasses it. What we can do is:
+         * default the picker to the whole monitor (displaySurface)
+         * hide this tab from the list, so they cannot share the exam back
+         * disable mid-session surface switching
+         * reject the share if they picked a tab or a single window, since
+           that would hide everything the proctor needs to see
+       Returns a promise resolving to { ok, reason }.
+       ------------------------------------------------------------------ */
+    requestScreen() {
+      const md = navigator.mediaDevices;
+      if (!md || !md.getDisplayMedia) {
+        return Promise.resolve({ ok: false, reason: "unsupported" });
+      }
+      return md
+        .getDisplayMedia({
+          video: { displaySurface: "monitor", frameRate: 4 },
+          audio: false,
+          monitorTypeSurfaces: "include",
+          selfBrowserSurface: "exclude",
+          surfaceSwitching: "exclude",
+          preferCurrentTab: false,
+        })
+        .then((stream) => {
+          const track = stream.getVideoTracks()[0];
+          const surface = track && track.getSettings ? track.getSettings().displaySurface : null;
+          // "monitor" = a whole screen. "window" / "browser" would let the
+          // candidate keep everything else hidden, so refuse it.
+          if (surface && surface !== "monitor") {
+            stream.getTracks().forEach((t) => t.stop());
+            return { ok: false, reason: "partial", surface: surface };
+          }
+          this._screenStream = stream;
+          return { ok: true, surface: surface || "monitor" };
+        })
+        .catch((err) => ({ ok: false, reason: "denied", error: String(err && err.name) }));
+    },
+
     /* ---- Screen share: live screen frames ---- */
     _startScreen() {
       if (!this._opts.urls.live || !navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) return;
-      navigator.mediaDevices.getDisplayMedia({ video: { frameRate: 4 }, audio: false })
+      // If the gate already acquired the stream, use it instead of prompting twice.
+      const pre = this._screenStream
+        ? Promise.resolve(this._screenStream)
+        : navigator.mediaDevices.getDisplayMedia({
+            video: { displaySurface: "monitor", frameRate: 4 },
+            audio: false,
+            monitorTypeSurfaces: "include",
+            selfBrowserSurface: "exclude",
+            surfaceSwitching: "exclude",
+          });
+      pre
         .then((stream) => {
           this._screenStream = stream;
           const v = document.createElement("video");

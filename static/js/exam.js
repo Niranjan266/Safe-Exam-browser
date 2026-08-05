@@ -98,7 +98,47 @@
   }
 
   /* ---------------- Start gate ---------------- */
+  function gateError(msg) {
+    const box = document.getElementById("gateError");
+    if (box) {
+      box.textContent = msg;
+      box.style.display = "block";
+    }
+    if (startBtn) {
+      startBtn.disabled = false;
+      startBtn.textContent = "Retry — share your entire screen";
+    }
+  }
+
+  /* Screen sharing is mandatory: the attempt does not open until the
+     candidate has shared a whole monitor. The browser always shows its own
+     picker for this — no web page can capture a screen silently. */
   function beginExam() {
+    if (startBtn) {
+      startBtn.disabled = true;
+      startBtn.textContent = "Waiting for screen sharing…";
+    }
+
+    SEBMonitoring.requestScreen().then((res) => {
+      if (!res.ok) {
+        if (res.reason === "partial") {
+          gateError(
+            "You shared a single " + (res.surface === "browser" ? "tab" : "window") +
+            ". The proctor must be able to see your entire screen — choose the " +
+            '"Entire screen" option and share again.'
+          );
+        } else if (res.reason === "unsupported") {
+          gateError("This browser cannot share a screen. Please use Chrome, Edge or Firefox on a desktop computer.");
+        } else {
+          gateError("Screen sharing was declined. It is required for this exam — press retry and choose your entire screen.");
+        }
+        return;
+      }
+      enterExam();
+    });
+  }
+
+  function enterExam() {
     if (gate) gate.style.display = "none";
 
     SEBSecurity.requestFullscreen();
@@ -108,6 +148,8 @@
     SEBMonitoring.init({
       urls: SEB.urls,
       snapshotInterval: SEB.snapshotInterval,
+      // Per-exam webcam switch, set by the admin/teacher on the exam form.
+      requireWebcam: SEB.requireWebcam !== false,
       liveInterval: 1500,
       onTerminate: onTerminate,
       onCameraDenied: () => handleViolation("No Face Detected", "camera denied"),

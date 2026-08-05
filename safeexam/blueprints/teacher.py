@@ -280,7 +280,8 @@ def exam_clone(exam_id):
     copy = Exam(
         title=f"{exam.title} (copy)", description=exam.description, duration=exam.duration,
         created_by=current_user.id, class_id=exam.class_id, is_published=False,
-        shuffle_questions=exam.shuffle_questions, max_violations=exam.max_violations,
+        shuffle_questions=exam.shuffle_questions,
+        require_webcam=exam.require_webcam, max_violations=exam.max_violations,
         pass_mark=exam.pass_mark,
     )
     db.session.add(copy)

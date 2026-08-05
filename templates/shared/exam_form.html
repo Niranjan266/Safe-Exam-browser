@@ -37,6 +37,11 @@
       <div class="form-group">
         <label>Options</label>
         <div class="checkbox-row" style="margin-bottom:8px;">{{ form.shuffle_questions() }} {{ form.shuffle_questions.label }}</div>
+        <div class="checkbox-row" style="margin-bottom:8px;">{{ form.require_webcam() }} {{ form.require_webcam.label }}</div>
+        <div class="helper-text" style="margin:-4px 0 8px;">
+          Off = the camera is never requested for this exam. Screen monitoring and
+          all other violation checks still apply.
+        </div>
         <div class="checkbox-row">{{ form.is_published() }} {{ form.is_published.label }}</div>
       </div>
     </div>

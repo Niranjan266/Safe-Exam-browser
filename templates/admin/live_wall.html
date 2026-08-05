@@ -80,6 +80,7 @@
         '<div class="wall-wait">Waiting for screen…</div>' +
         '<img class="wall-cam" alt="">' +
         '<span class="wall-live"><span class="rec-dot"></span>LIVE</span>' +
+        '<span class="wall-nocam">CAMERA OFF</span>' +
       "</a>" +
       '<div class="wall-meta">' +
         '<div class="wall-name"></div>' +
@@ -110,11 +111,15 @@
       liveTag.style.display = "none";
     }
 
+    var noCam = el.querySelector(".wall-nocam");
     if (row.has_cam && camToggle.checked) {
       cam.src = row.cam_url + "?t=" + stamp;
       cam.style.display = "block";
+      noCam.style.display = "none";
     } else {
       cam.style.display = "none";
+      // Distinguish "this exam has no webcam proctoring" from "waiting for a feed".
+      noCam.style.display = row.webcam_enabled === false ? "block" : "none";
     }
 
     el.querySelector(".wall-name").textContent = row.student;

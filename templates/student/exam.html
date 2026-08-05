@@ -12,10 +12,16 @@
     <div class="checklist">
       <div>{{ icon('alert') }} Leaving full screen, switching tabs, copying, pasting and right-clicking are recorded as violations.</div>
       <div>{{ icon('lock') }} After {{ exam.max_violations or policy.max_violations }} violations the attempt is terminated automatically.</div>
-      {% if policy.snapshot_interval > 0 %}<div>{{ icon('camera') }} Your webcam may capture periodic snapshots for proctor review.</div>{% endif %}
-      <div>{{ icon('maximize') }} You will be asked to share your screen so a proctor can monitor your session live.</div>
+      {% if exam.require_webcam %}
+        {% if policy.snapshot_interval > 0 %}<div>{{ icon('camera') }} Your webcam may capture periodic snapshots for proctor review.</div>{% endif %}
+      {% else %}
+        {# The checklist row is a flexbox, so the sentence must be a single child. #}
+        <div>{{ icon('camera') }} <span>The webcam is <strong>not used</strong> for this exam. Your screen is still monitored.</span></div>
+      {% endif %}
+      <div>{{ icon('maximize') }} <span>You must share your <strong>entire screen</strong> so a proctor can monitor your session live. Sharing a single tab or window is not accepted.</span></div>
       <div>{{ icon('clock') }} You have {{ (seconds_remaining // 60) }} min {{ (seconds_remaining % 60) }} s remaining. Timing is enforced by the server.</div>
     </div>
+    <div id="gateError" class="gate-error" style="display:none;"></div>
     <button id="startBtn">{{ icon('maximize') }} Enter secure mode &amp; begin</button>
   </div>
 </div>
@@ -56,6 +62,9 @@
     secondsRemaining: {{ seconds_remaining }},
     maxViolations: {{ exam.max_violations or policy.max_violations }},
     snapshotInterval: {{ policy.snapshot_interval }},
+    // Set per exam by the admin/teacher. When false the browser never calls
+    // getUserMedia, so no camera permission prompt and no indicator light.
+    requireWebcam: {{ 'true' if exam.require_webcam else 'false' }},
     urls: {
       state:     "{{ url_for('api.exam_state', exam_id=exam.id) }}",
       violation: "{{ url_for('api.log_violation', exam_id=exam.id) }}",

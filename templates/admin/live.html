@@ -33,8 +33,8 @@
     </div>
     <div class="live-screen-wrap">
       <img id="screenFrame" alt="Student screen">
-      <div class="live-wait" id="screenWait">{{ icon('maximize', 'ic-xl') }}<p>Waiting for the student's screen…</p>
-        <span class="tag">The student must grant screen sharing in secure mode.</span></div>
+      <div class="live-wait" id="screenWait">{{ icon('maximize', 'ic-xl') }}<p>Waiting for the candidate's screen…</p>
+        <span class="tag">Frames appear within a few seconds of the attempt starting.</span></div>
     </div>
   </div>
 
@@ -42,7 +42,10 @@
     <div class="section-title" style="margin:0 0 10px;">{{ icon('camera') }} Webcam</div>
     <div class="live-cam-wrap">
       <img id="camFrame" alt="Student webcam">
-      <div class="live-wait sm" id="camWait">{{ icon('camera', 'ic-xl') }}<p>No webcam feed</p></div>
+      <div class="live-wait sm" id="camWait">{{ icon('camera', 'ic-xl') }}
+        {% if sub.exam.require_webcam %}<p>No webcam feed</p>
+        {% else %}<p>Camera off</p><span class="tag">Webcam proctoring is disabled for this exam.</span>{% endif %}
+      </div>
     </div>
     <div class="divider"></div>
     <p class="tag">Status:
@@ -67,12 +70,13 @@
       probe.onerror = function () { img.style.display = 'none'; wait.style.display = 'flex'; };
       probe.src = url;
     }
+    var camEnabled = {{ 'true' if sub.exam.require_webcam else 'false' }};
     function tick() {
       refresh(screenBase, document.getElementById('screenFrame'), document.getElementById('screenWait'), function () {
         anyScreen = true; liveState.textContent = 'LIVE'; liveState.style.color = 'var(--success)';
         lastUpdate.textContent = 'Last frame: ' + new Date().toLocaleTimeString();
       });
-      refresh(camBase, document.getElementById('camFrame'), document.getElementById('camWait'), null);
+      if (camEnabled) refresh(camBase, document.getElementById('camFrame'), document.getElementById('camWait'), null);
       setTimeout(function () { if (!anyScreen) { liveState.textContent = 'Waiting for student'; liveState.style.color = 'var(--muted)'; } anyScreen = false; }, 1100);
     }
     tick();

@@ -145,6 +145,10 @@ class Exam(db.Model):
 
     is_published = db.Column(db.Boolean, default=False, nullable=False)
     shuffle_questions = db.Column(db.Boolean, default=False, nullable=False)
+    # When false the candidate's camera is never requested for this exam: no
+    # webcam preview, no snapshots and no live cam frames. Screen monitoring
+    # and every other violation check are unaffected.
+    require_webcam = db.Column(db.Boolean, default=True, nullable=False)
     # Optional availability window
     available_from = db.Column(db.DateTime, nullable=True)
     available_until = db.Column(db.DateTime, nullable=True)

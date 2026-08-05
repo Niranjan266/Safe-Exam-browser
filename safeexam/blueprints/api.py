@@ -126,6 +126,10 @@ def upload_snapshot(exam_id):
     sub = _active_or_none(exam_id)
     if sub is None or not sub.is_active:
         return jsonify({"ok": False}), 200
+    # The exam has webcam proctoring switched off — refuse the upload rather
+    # than trusting the client to have stopped sending.
+    if not sub.exam.require_webcam:
+        return jsonify({"ok": False, "disabled": True})
 
     file = request.files.get("snapshot")
     if not file:
@@ -146,6 +150,8 @@ def live_frame(exam_id):
     kind = request.form.get("kind", "screen")
     if kind not in ("screen", "cam"):
         kind = "screen"
+    if kind == "cam" and not sub.exam.require_webcam:
+        return jsonify({"ok": False, "disabled": True})
     file = request.files.get("frame")
     if not file:
         return jsonify({"ok": False, "error": "no file"}), 400
@@ -210,7 +216,9 @@ def live_wall_feed():
     exam_id = request.args.get("exam_id", type=int)
 
     query = (
-        db.session.query(Submission, User.username, User.full_name, Exam.title)
+        db.session.query(
+            Submission, User.username, User.full_name, Exam.title, Exam.require_webcam
+        )
         .join(User, User.id == Submission.student_id)
         .join(Exam, Exam.id == Submission.exam_id)
         .filter(
@@ -223,12 +231,12 @@ def live_wall_feed():
 
     records = query.order_by(Submission.started_at.desc()).all()
     # One lookup for every attempt rather than two filesystem/DB hits each.
-    present = framestore.live_frame_ids([s.id for s, _, _, _ in records])
+    present = framestore.live_frame_ids([r[0].id for r in records])
 
     rows = []
-    for sub, username, full_name, exam_title in records:
+    for sub, username, full_name, exam_title, require_webcam in records:
         has_screen = (sub.id, "screen") in present
-        has_cam = (sub.id, "cam") in present
+        has_cam = bool(require_webcam) and (sub.id, "cam") in present
         rows.append(
             {
                 "submission_id": sub.id,
@@ -241,6 +249,9 @@ def live_wall_feed():
                 "locked": sub.locked,
                 "has_screen": has_screen,
                 "has_cam": has_cam,
+                # False when the exam was authored with the webcam switched off,
+                # so the dashboard can say "camera off" rather than "no signal".
+                "webcam_enabled": bool(require_webcam),
                 "screen_url": url_for("admin.live_frame_image", sub_id=sub.id, kind="screen"),
                 "cam_url": url_for("admin.live_frame_image", sub_id=sub.id, kind="cam"),
                 "detail_url": url_for("admin.live_view", sub_id=sub.id),

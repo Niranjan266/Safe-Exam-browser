@@ -23,7 +23,11 @@
               <span class="badge badge-muted">{{ exam.school_class.subject_code }}</span>
             {% else %}<span class="muted">—</span>{% endif %}
           </td>
-          <td>{{ exam.duration }} min</td>
+          <td>{{ exam.duration }} min
+            {% if not exam.require_webcam %}
+            <span class="badge badge-muted" title="Webcam proctoring is off for this exam">{{ icon('camera') }} off</span>
+            {% endif %}
+          </td>
           <td>{{ exam.question_count }}</td>
           <td>{{ exam.pass_mark if exam.pass_mark is not none else policy.pass_mark }}%</td>
           <td>

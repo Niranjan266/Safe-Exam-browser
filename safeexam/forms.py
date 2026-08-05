@@ -60,6 +60,7 @@ class ExamForm(FlaskForm):
         validators=[Optional(), NumberRange(min=0, max=100)],
     )
     shuffle_questions = BooleanField("Shuffle question order")
+    require_webcam = BooleanField("Require webcam", default=True)
     is_published = BooleanField("Published (visible to students)")
     available_from = DateTimeLocalField(
         "Available from", format="%Y-%m-%dT%H:%M", validators=[Optional()]

@@ -302,6 +302,8 @@ tr:hover td { background: var(--bg-2); }
 .overlay .checklist { text-align: left; color: var(--text-2); margin: 0 auto 22px; max-width: 440px; display: flex; flex-direction: column; gap: 10px; }
 .overlay .checklist div { display: flex; gap: 10px; align-items: flex-start; }
 .overlay .checklist .ic { color: var(--primary); margin-top: 2px; flex: none; }
+.gate-error { background: #FDECEC; border: 1px solid var(--danger); color: #8E2B2B; border-radius: 10px;
+    padding: 12px 14px; margin: 0 auto 16px; max-width: 440px; text-align: left; font-size: 13.5px; line-height: 1.5; }
 
 /* ---------- Result ---------- */
 .result-center { display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 24px; }
@@ -358,6 +360,10 @@ canvas { max-width: 100%; }
 .wall-live { position: absolute; left: 8px; top: 8px; display: none; align-items: center; gap: 5px;
     background: rgba(15, 23, 42, .78); color: #fff; font-size: 10px; font-weight: 700;
     letter-spacing: .06em; padding: 3px 8px; border-radius: 999px; }
+
+.wall-nocam { position: absolute; right: 8px; bottom: 8px; display: none;
+    background: rgba(15, 23, 42, .82); color: #C7D2E3; font-size: 10px; font-weight: 700;
+    letter-spacing: .06em; padding: 4px 9px; border-radius: 6px; }
 
 .wall-meta { padding: 10px 12px 12px; }
 .wall-name { font-weight: 700; font-size: 14px; }
