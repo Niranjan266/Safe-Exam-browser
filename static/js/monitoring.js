@@ -179,6 +179,10 @@
       pre
         .then((stream) => {
           this._screenStream = stream;
+          // Anything that throws below is a *setup* fault, not the candidate
+          // refusing to share — reporting it as a denial would be a false
+          // violation, so the try/catch keeps the two apart.
+          try {
           const v = document.createElement("video");
           v.autoplay = true; v.muted = true; v.playsInline = true; v.srcObject = stream;
           this._screenVideo = v;
@@ -201,6 +205,9 @@
             if (this._grab(this._screenVideo, this._screenCanvas))
               this._sendFrame(this._screenCanvas, this._opts.urls.live, "frame", "screen");
           }, this._liveInterval);
+          } catch (e) {
+            if (window.console) console.warn("SafeExam: screen capture setup failed", e);
+          }
         })
         .catch(() => { if (this._opts.onScreenDenied) this._opts.onScreenDenied(); });
     },

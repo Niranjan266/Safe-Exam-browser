@@ -61,20 +61,52 @@
   }
 
   /* ---------------- Violations ---------------- */
+  /* Tell the candidate exactly what they just did, not a generic warning. */
+  function describe(type, details) {
+    switch (type) {
+      case "Blocked Key":
+        return "Keyboard is disabled — you pressed " + (details || "a key");
+      case "Keyboard Shortcut Attempt":
+        return "Shortcut blocked — " + (details || "keyboard shortcut");
+      case "DevTools Suspected":
+        return "Developer tools blocked" + (details ? " — " + details : "");
+      case "Right Click Attempt":
+        return "Right-click is disabled";
+      case "Copy Attempt":
+        return "Copying is disabled";
+      case "Cut Attempt":
+        return "Cutting is disabled";
+      case "Paste Attempt":
+        return "Pasting is disabled";
+      case "Tab Switch":
+        return "You switched away from the exam" + (details ? " (" + details + ")" : "");
+      case "Window Blur":
+        return "The exam window lost focus";
+      case "Exited Fullscreen":
+        return "You left full screen";
+      case "Window Resized":
+        return "The exam window was resized";
+      default:
+        return type + (details ? " — " + details : "");
+    }
+  }
+
   function handleViolation(type, details) {
     if (terminated) return;
     violations += 1;
     if (violEl) violEl.textContent = violations;
 
+    const what = describe(type, details);
+
     SEBMonitoring.postJSON(SEB.urls.violation, { type: type, details: details }).then((res) => {
       if (!res) return;
       if (res.terminated) {
-        showWarning("⛔ Violation limit exceeded — attempt terminated");
-        setTimeout(goLocked, 900);
+        showWarning("⛔ " + what + " — violation limit reached, attempt terminated");
+        setTimeout(goLocked, 1400);
       } else if (res.status === "high_risk") {
-        showWarning("⚠ " + type + " — you are being flagged (high risk)");
+        showWarning("⚠ " + what + " — flagged as high risk (" + violations + "/" + SEB.maxViolations + ")");
       } else {
-        showWarning("⚠ " + type + " detected (" + violations + "/" + SEB.maxViolations + ")");
+        showWarning("⚠ " + what + "  (" + violations + "/" + SEB.maxViolations + ")");
       }
     });
   }
@@ -114,6 +146,12 @@
      candidate has shared a whole monitor. The browser always shows its own
      picker for this — no web page can capture a screen silently. */
   function beginExam() {
+    // Full screen MUST be requested first, synchronously inside the click.
+    // Awaiting the screen-share picker first consumes the user gesture, the
+    // fullscreen call then silently fails, and the resulting "Exited
+    // Fullscreen" events terminate the attempt the moment it opens.
+    SEBSecurity.requestFullscreen();
+
     if (startBtn) {
       startBtn.disabled = true;
       startBtn.textContent = "Waiting for screen sharing…";
@@ -141,9 +179,11 @@
   function enterExam() {
     if (gate) gate.style.display = "none";
 
-    SEBSecurity.requestFullscreen();
+    // Re-assert full screen in case the share picker dropped out of it.
+    if (!SEBSecurity.isFullscreen()) SEBSecurity.requestFullscreen();
 
-    SEBSecurity.init({ onViolation: handleViolation });
+    // graceMs covers the fullscreen/resize/focus churn of the first moments.
+    SEBSecurity.init({ onViolation: handleViolation, graceMs: 2500 });
 
     SEBMonitoring.init({
       urls: SEB.urls,

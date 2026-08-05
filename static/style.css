@@ -296,7 +296,9 @@ tr:hover td { background: var(--bg-2); }
 .overlay { position: fixed; inset: 0; background: rgba(20, 30, 55, .55); backdrop-filter: blur(6px);
     display: flex; align-items: center; justify-content: center; z-index: 9998; padding: 24px; animation: fadeIn .25s ease; }
 .overlay .panel { background: #fff; border: 1px solid var(--border); border-radius: 16px; padding: 38px;
-    max-width: 540px; text-align: center; box-shadow: var(--shadow-lg); animation: popIn .4s ease both; }
+    max-width: 540px; text-align: center; box-shadow: var(--shadow-lg); animation: popIn .4s ease both;
+    /* Short or narrow windows must still be able to reach the start button. */
+    max-height: calc(100vh - 48px); overflow-y: auto; }
 .overlay .panel h2 { margin: 10px 0 8px; }
 .overlay .panel p { color: var(--muted); margin-bottom: 18px; }
 .overlay .checklist { text-align: left; color: var(--text-2); margin: 0 auto 22px; max-width: 440px; display: flex; flex-direction: column; gap: 10px; }

@@ -22,6 +22,10 @@ VIOLATION_SEVERITY = {
     "Cut Attempt": 1,
     "Right Click Attempt": 1,
     "Keyboard Shortcut Attempt": 1,
+    # A plain key press during a mouse-only exam: recorded and shown to the
+    # candidate, but the lightest possible weight so a stray keystroke does not
+    # carry the same cost as probing dev tools.
+    "Blocked Key": 1,
     "DevTools Suspected": 3,
     "Window Resized": 1,
     "Multiple Faces": 3,
