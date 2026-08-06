@@ -2,10 +2,16 @@
 Admin-editable global settings, backed by the AppSetting key/value table and
 falling back to values from config.py when a key has not been customised.
 """
-from flask import current_app
+from flask import current_app, g
 
 from .extensions import db
 from .models import AppSetting
+
+# Request-scoped cache key. The settings table is tiny and changes only when an
+# admin saves the form, but it used to be read one key at a time on every single
+# template render — six separate round trips per page. Against a remote database
+# that alone cost over a second per request.
+_CACHE_KEY = "_seb_policy_cache"
 
 # key -> (config fallback key or None, hard default)
 DEFAULTS = {
@@ -37,20 +43,50 @@ def _default(key):
     return fallback
 
 
+def _load_policy():
+    """Read every setting in ONE query and cache it for this request."""
+    try:
+        cached = g.get(_CACHE_KEY)
+    except RuntimeError:          # outside a request context
+        cached = None
+    if cached is not None:
+        return cached
+
+    stored = {}
+    try:
+        for row in AppSetting.query.all():          # single round trip
+            try:
+                stored[row.key] = int(row.value)
+            except (TypeError, ValueError):
+                pass
+    except Exception:
+        db.session.rollback()                       # fall back to config defaults
+
+    policy = {k: stored.get(k, _default(k)) for k in DEFAULTS}
+    try:
+        setattr(g, _CACHE_KEY, policy)
+    except RuntimeError:
+        pass
+    return policy
+
+
 def get_int(key):
     if key not in DEFAULTS:
         raise KeyError(key)
-    row = db.session.get(AppSetting, key)
-    if row is not None:
-        try:
-            return int(row.value)
-        except (TypeError, ValueError):
-            pass
-    return _default(key)
+    return _load_policy()[key]
 
 
 def get_policy():
-    return {k: get_int(k) for k in DEFAULTS}
+    return _load_policy()
+
+
+def invalidate_cache():
+    """Drop the per-request cache after an admin saves new values."""
+    try:
+        if g.get(_CACHE_KEY) is not None:
+            setattr(g, _CACHE_KEY, None)
+    except RuntimeError:
+        pass
 
 
 def set_policy(values):
@@ -64,3 +100,4 @@ def set_policy(values):
         else:
             row.value = str(int(v))
     db.session.commit()
+    invalidate_cache()
