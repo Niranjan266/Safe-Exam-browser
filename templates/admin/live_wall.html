@@ -12,7 +12,10 @@
     <div class="meta-row">
       <span>{{ icon('eye') }} <strong id="wallCount">0</strong> candidate(s) in progress</span>
       <span class="live-dot">{{ icon('activity') }} <span id="wallState">Connecting…</span></span>
-      <span class="tag">Passive view — the candidate is not notified and is not interrupted.</span>
+      <span class="tag">
+        {% if live_ws %}Streaming — frames pushed as captured.{% else %}Polling — this host cannot stream.{% endif %}
+        Passive view: the candidate is not notified and is not interrupted.
+      </span>
     </div>
     <div class="toolbar" style="margin:0;">
       <form method="GET" id="filterForm">
@@ -26,10 +29,11 @@
       <label class="checkbox-row" style="margin:0; white-space:nowrap;">
         <input type="checkbox" id="showCam" checked> <span>Show webcam</span>
       </label>
-      <select id="refreshRate">
-        <option value="1500" selected>Refresh 1.5s</option>
-        <option value="3000">Refresh 3s</option>
-        <option value="6000">Refresh 6s</option>
+      {# With a socket this only paces the small status feed, not the picture. #}
+      <select id="refreshRate" title="How often candidate status is refreshed">
+        <option value="1500" selected>Status 1.5s</option>
+        <option value="3000">Status 3s</option>
+        <option value="6000">Status 6s</option>
       </select>
     </div>
   </div>
@@ -54,6 +58,53 @@
   var timer = null;
   var tiles = {};       // submission_id -> DOM node
   var lastOrder = "";   // guards against needless re-ordering (see tick)
+
+  // When the host supports sockets, each tile keeps one open and frames are
+  // pushed as they are captured. The metadata feed below still polls, but it
+  // is small JSON and no longer gates how fresh the picture is.
+  var LIVE_WS = {{ 'true' if live_ws else 'false' }};
+  var sockets = {};     // "subId:kind" -> WebSocket
+  var blobUrls = {};    // "subId:kind" -> object URL currently shown
+
+  function watch(subId, kind, imgEl) {
+    if (!LIVE_WS) return false;
+    var key = subId + ":" + kind;
+    if (sockets[key]) return true;
+
+    var proto = location.protocol === "https:" ? "wss:" : "ws:";
+    var ws;
+    try {
+      ws = new WebSocket(proto + "//" + location.host + "/ws/watch/" + subId + "/" + kind);
+    } catch (e) { return false; }
+    ws.binaryType = "blob";
+    sockets[key] = ws;
+
+    ws.onmessage = function (ev) {
+      if (typeof ev.data === "string") return;         // keep-alive ping
+      var url = URL.createObjectURL(ev.data);
+      imgEl.src = url;
+      imgEl.style.display = "block";
+      // Release the previous frame or the tab leaks memory within minutes.
+      if (blobUrls[key]) URL.revokeObjectURL(blobUrls[key]);
+      blobUrls[key] = url;
+      var wait = imgEl.parentNode && imgEl.parentNode.querySelector(".wall-wait");
+      if (wait) wait.style.display = "none";
+    };
+    ws.onclose = function () {
+      delete sockets[key];
+      if (blobUrls[key]) { URL.revokeObjectURL(blobUrls[key]); delete blobUrls[key]; }
+    };
+    ws.onerror = function () { try { ws.close(); } catch (e) {} };
+    return true;
+  }
+
+  function unwatch(subId) {
+    ["screen", "cam"].forEach(function (kind) {
+      var key = subId + ":" + kind;
+      if (sockets[key]) { try { sockets[key].close(); } catch (e) {} delete sockets[key]; }
+      if (blobUrls[key]) { URL.revokeObjectURL(blobUrls[key]); delete blobUrls[key]; }
+    });
+  }
 
   function esc(s) {
     return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
@@ -101,21 +152,31 @@
     var cam = el.querySelector(".wall-cam");
     var liveTag = el.querySelector(".wall-live");
 
+    // With a socket the frames arrive on their own; only fetch by URL when
+    // we are polling.
+    var streaming = watch(row.submission_id, "screen", screen);
+
     if (row.has_screen) {
-      screen.src = row.screen_url + "?t=" + stamp;
-      screen.style.display = "block";
-      wait.style.display = "none";
+      if (!streaming) {
+        screen.src = row.screen_url + "?t=" + stamp;
+        screen.style.display = "block";
+        wait.style.display = "none";
+      }
       liveTag.style.display = "flex";
-    } else {
+    } else if (!streaming) {
       screen.style.display = "none";
       wait.style.display = "flex";
       liveTag.style.display = "none";
     }
 
     var noCam = el.querySelector(".wall-nocam");
-    if (row.has_cam && camToggle.checked) {
-      cam.src = row.cam_url + "?t=" + stamp;
-      cam.style.display = "block";
+    var wantCam = row.webcam_enabled !== false && camToggle.checked;
+    if (wantCam) {
+      var camStreaming = watch(row.submission_id, "cam", cam);
+      if (row.has_cam && !camStreaming) {
+        cam.src = row.cam_url + "?t=" + stamp;
+        cam.style.display = "block";
+      }
       noCam.style.display = "none";
     } else {
       cam.style.display = "none";
@@ -154,9 +215,10 @@
           }
           paint(el, row, stamp);
         });
-        // Drop tiles for attempts that finished.
+        // Drop tiles for attempts that finished, and close their sockets.
         Object.keys(tiles).forEach(function (id) {
           if (!seen[id]) {
+            unwatch(id);
             grid.removeChild(tiles[id]);
             delete tiles[id];
           }

@@ -207,7 +207,9 @@
       snapshotInterval: SEB.snapshotInterval,
       // Per-exam webcam switch, set by the admin/teacher on the exam form.
       requireWebcam: SEB.requireWebcam !== false,
-      liveInterval: 1500,
+      // Null on serverless hosts; monitoring.js then falls back to HTTP and
+      // picks a slower capture rate on its own.
+      wsUrl: SEB.wsUrl || null,
       onTerminate: onTerminate,
       onCameraDenied: () => handleViolation("No Face Detected", "camera denied"),
       onScreenDenied: () => handleViolation("Screen Share Denied", "getDisplayMedia denied"),

@@ -66,6 +66,9 @@
     // Set per exam by the admin/teacher. When false the browser never calls
     // getUserMedia, so no camera permission prompt and no indicator light.
     requireWebcam: {{ 'true' if exam.require_webcam else 'false' }},
+    // Present only where the host can hold a socket open. When null the client
+    // falls back to one HTTP POST per frame.
+    wsUrl: {{ ("'/ws/exam/%d/stream'" % exam.id)|safe if live_ws else 'null' }},
     urls: {
       state:     "{{ url_for('api.exam_state', exam_id=exam.id) }}",
       violation: "{{ url_for('api.log_violation', exam_id=exam.id) }}",

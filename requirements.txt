@@ -9,3 +9,7 @@ reportlab>=4.0
 email-validator>=2.1
 # Turso / libSQL driver — used when SEB_TURSO_URL + SEB_TURSO_TOKEN are set.
 libsql>=0.1.11
+# Live proctoring over WebSockets. Optional: on hosts that cannot hold a
+# socket open the app detects it and falls back to HTTP polling.
+flask-sock>=0.7
+simple-websocket>=1.1

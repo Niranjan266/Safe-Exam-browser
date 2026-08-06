@@ -234,9 +234,39 @@ def _register_blueprints(app):
     app.register_blueprint(teacher_bp)
     app.register_blueprint(api_bp)
 
+    _register_websockets(app)
+
     # API endpoints are JSON + token-style; exempt from form CSRF
     # (they are still protected by login + the per-attempt token).
     csrf.exempt(api_bp)
+
+
+def _register_websockets(app):
+    """
+    Live proctoring over WebSockets, where the host can hold a socket open.
+
+    Serverless hosts cannot, so the routes are skipped there and the front-end
+    falls back to polling. Registration is also tolerant of flask-sock being
+    absent, so a plain `pip install -r requirements.txt` still runs.
+    """
+    from .blueprints import ws as ws_module
+
+    app.config["LIVE_WS"] = False
+    if not ws_module.ws_available():
+        app.logger.info("WebSockets unavailable on this host — live view will poll.")
+        return
+
+    try:
+        from flask_sock import Sock
+    except ImportError:
+        app.logger.info("flask-sock not installed — live view will poll.")
+        return
+
+    # Ping regularly so idle sockets survive intermediate proxies.
+    app.config.setdefault("SOCK_SERVER_OPTIONS", {"ping_interval": 20})
+    ws_module.register(Sock(app))
+    app.config["LIVE_WS"] = True
+    app.logger.info("WebSocket live streaming enabled.")
 
 
 def _register_errorhandlers(app):
@@ -290,6 +320,9 @@ def _register_context(app):
             "current_year": datetime.utcnow().year,
             "policy": policy,
             "ns": ns,
+            # Templates use this to choose the live transport: push over a
+            # socket where the host allows it, polling where it does not.
+            "live_ws": bool(app.config.get("LIVE_WS")),
         }
 
 

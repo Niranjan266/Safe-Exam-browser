@@ -28,7 +28,11 @@
 
     init(opts) {
       this._opts = opts || {};
-      this._liveInterval = this._opts.liveInterval || 1500;
+      // Over a socket we can afford a real frame rate; over HTTP each frame is
+      // a separate request, so stay conservative there.
+      this._liveInterval = this._opts.liveInterval ||
+                           (this._opts.wsUrl ? 110 : 900);
+      this._openLiveSocket();
       this._startHeartbeat();
       this._startStatePoll();
       // requireWebcam is a per-exam setting. When it is false we never call
@@ -71,15 +75,72 @@
       this._sp = setInterval(poll, 3000);
     },
 
-    /* ---- Send one JPEG frame (multipart) to an endpoint ---- */
-    _sendFrame(canvas, url, field, kind) {
+    /* ------------------------------------------------------------------
+       Live transport.
+
+       Preferred: one open WebSocket, frames pushed the instant they are
+       captured. Fallback: an HTTP POST per frame, which is what serverless
+       hosts are limited to.
+
+       The socket is opened lazily and, if it will not connect, we stop trying
+       and use HTTP for the rest of the attempt rather than reconnecting in a
+       loop during an exam.
+       ------------------------------------------------------------------ */
+    _openLiveSocket() {
+      if (!this._opts.wsUrl || this._wsGaveUp) return;
+      if (this._ws && (this._ws.readyState === 0 || this._ws.readyState === 1)) return;
+
+      const proto = location.protocol === "https:" ? "wss:" : "ws:";
+      let sock;
+      try {
+        sock = new WebSocket(proto + "//" + location.host + this._opts.wsUrl);
+      } catch (e) {
+        this._wsGaveUp = true;
+        return;
+      }
+      sock.binaryType = "arraybuffer";
+      this._ws = sock;
+
+      sock.onopen = () => { this._wsFails = 0; };
+      sock.onclose = () => {
+        this._ws = null;
+        // A couple of retries covers a blip; more than that means the host
+        // does not support sockets, so settle on HTTP and stop churning.
+        this._wsFails = (this._wsFails || 0) + 1;
+        if (this._wsFails >= 3) this._wsGaveUp = true;
+        else setTimeout(() => this._openLiveSocket(), 1500);
+      };
+      sock.onerror = () => { try { sock.close(); } catch (e) {} };
+    },
+
+    _wsReady() {
+      return this._ws && this._ws.readyState === 1;
+    },
+
+    /* ---- Send one JPEG frame, over the socket when we have one ---- */
+    _sendFrame(canvas, url, field, kind, quality) {
       canvas.toBlob((blob) => {
         if (!blob) return;
+
+        if (kind && this._wsReady()) {
+          // "<kind>|" + raw JPEG. Binary avoids base64's 33% overhead and the
+          // socket avoids a fresh request per frame.
+          const header = new TextEncoder().encode(kind + "|");
+          blob.arrayBuffer().then((buf) => {
+            if (!this._wsReady()) return;
+            const msg = new Uint8Array(header.length + buf.byteLength);
+            msg.set(header, 0);
+            msg.set(new Uint8Array(buf), header.length);
+            try { this._ws.send(msg); } catch (e) {}
+          }).catch(() => {});
+          return;
+        }
+
         const fd = new FormData();
         fd.append(field, blob, "f.jpg");
         if (kind) fd.append("kind", kind);
         fetch(url, { method: "POST", body: fd }).catch(() => {});
-      }, "image/jpeg", 0.6);
+      }, "image/jpeg", quality || 0.6);
     },
 
     _grab(video, canvas) {
@@ -141,7 +202,7 @@
       }
       return md
         .getDisplayMedia({
-          video: { displaySurface: "monitor", frameRate: 4 },
+          video: { displaySurface: "monitor", frameRate: 15 },
           audio: false,
           monitorTypeSurfaces: "include",
           selfBrowserSurface: "exclude",
@@ -170,7 +231,7 @@
       const pre = this._screenStream
         ? Promise.resolve(this._screenStream)
         : navigator.mediaDevices.getDisplayMedia({
-            video: { displaySurface: "monitor", frameRate: 4 },
+            video: { displaySurface: "monitor", frameRate: 15 },
             audio: false,
             monitorTypeSurfaces: "include",
             selfBrowserSurface: "exclude",
@@ -215,6 +276,8 @@
     stop() {
       clearInterval(this._hb); clearInterval(this._sp);
       clearInterval(this._snap); clearInterval(this._camLive); clearInterval(this._screenLive);
+      this._wsGaveUp = true;               // no reconnect after a deliberate stop
+      if (this._ws) { try { this._ws.close(); } catch (e) {} this._ws = null; }
       [this._camStream, this._screenStream].forEach((s) => { if (s) s.getTracks().forEach((t) => t.stop()); });
     },
   };
