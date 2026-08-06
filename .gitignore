@@ -50,3 +50,6 @@ legacy_flask_backup/
 # A clone of this repo was made inside the working copy; ignore it so it
 # never gets committed as an embedded repository.
 Safe-Exam-browser/
+
+# The C++ / Drogon port. Kept local on purpose — not pushed to GitHub.
+SafeExamCpp/
