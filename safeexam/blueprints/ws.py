@@ -48,6 +48,21 @@ def ws_available() -> bool:
     return not os.environ.get("VERCEL")
 
 
+def _refuse(ws, reason):
+    """
+    Decline a socket with a readable reason instead of just dropping it.
+
+    1008 = "policy violation", the closest standard code for "the handshake was
+    fine, but you are not allowed to stream right now". The browser surfaces it
+    on the close event, so a refusal is visible in the console rather than
+    looking like an unsupported transport.
+    """
+    try:
+        ws.close(1008, reason)
+    except Exception:
+        pass
+
+
 def register(sock):
     """Attach the routes to a flask_sock.Sock instance."""
 
@@ -56,21 +71,27 @@ def register(sock):
     # ------------------------------------------------------------------
     @sock.route("/ws/exam/<int:exam_id>/stream")
     def exam_stream(ws, exam_id):
+        # Refusals carry a reason. Closing silently is indistinguishable from
+        # "this host cannot do WebSockets at all", which sent a live feed that
+        # was in fact working to a fallback and cost hours to diagnose.
         if not current_user.is_authenticated:
-            return
+            return _refuse(ws, "not signed in")
         user_id = current_user.id
 
         exam = db.session.get(Exam, exam_id)
         if exam is None:
-            return
+            return _refuse(ws, "no such exam")
 
         sub = (
             Submission.query.filter_by(student_id=user_id, exam_id=exam_id)
             .order_by(Submission.id.desc())
             .first()
         )
-        if sub is None or not sub.is_active:
-            return
+        if sub is None:
+            return _refuse(ws, "attempt not started")
+        if not sub.is_active:
+            # Most often a locked or already-submitted attempt.
+            return _refuse(ws, "attempt is not active")
 
         submission_id = sub.id
         require_webcam = bool(exam.require_webcam)
@@ -127,9 +148,9 @@ def register(sock):
     def watch(ws, sub_id, kind):
         # Live screen and camera are admin-only; teachers never see them.
         if not current_user.is_authenticated or not current_user.is_admin:
-            return
+            return _refuse(ws, "administrators only")
         if kind not in ("screen", "cam"):
-            return
+            return _refuse(ws, "unknown feed")
 
         subscriber = hub.subscribe(sub_id, kind)
         try:
