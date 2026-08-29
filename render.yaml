@@ -1,0 +1,53 @@
+# Render blueprint — SafeExam
+#
+# Render holds connections open, so the WebSocket live feed works here. Vercel
+# cannot do that with Python, which is why the deployed copy there falls back
+# to polling.
+#
+# The start command matters more than it looks:
+#
+#   -w 1        ONE worker, deliberately. Live frames are fanned out through an
+#               in-memory hub (safeexam/livehub.py). With several workers a
+#               proctor connected to worker A would never see frames uploaded
+#               to worker B, and the failure would be silent. Scaling past one
+#               worker means moving the hub to Redis pub/sub.
+#   -k gthread  Threaded worker: each open socket holds a thread for its life,
+#               which the default sync worker cannot do.
+#   --threads   Upper bound on concurrent connections (candidates + proctors).
+#   --timeout   The default 30s would kill idle WebSockets mid-exam.
+services:
+  - type: web
+    name: safeexam
+    runtime: python
+    plan: free
+    region: singapore                # closest Render region to the Mumbai database
+    branch: main
+    autoDeploy: true
+    buildCommand: pip install -r requirements.txt
+    startCommand: >-
+      gunicorn wsgi:app
+      -w 1 -k gthread --threads 24
+      --timeout 300 --graceful-timeout 30
+      -b 0.0.0.0:$PORT
+    healthCheckPath: /healthz
+    envVars:
+      - key: SEB_ENV
+        value: production
+      - key: SEB_SECURE_COOKIES
+        value: "1"
+      - key: PYTHON_VERSION
+        value: "3.12.7"
+      # Schema already exists in Turso; skip the per-boot round trips.
+      - key: SEB_INIT_DB
+        value: "0"
+      # Frames are held in memory for live viewing and mirrored to the database
+      # every couple of seconds for the single-attempt view.
+      - key: SEB_FRAME_STORAGE
+        value: db
+      # Set in the Render dashboard — never committed.
+      - key: SEB_SECRET_KEY
+        sync: false
+      - key: SEB_TURSO_URL
+        sync: false
+      - key: SEB_TURSO_TOKEN
+        sync: false

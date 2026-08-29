@@ -109,6 +109,7 @@ class ProductionConfig(Config):
         default=(
             "exam.niranjand.in",
             ".vercel.app",
+            ".onrender.com",
             "localhost",
             "127.0.0.1",
         ),
