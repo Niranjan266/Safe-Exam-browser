@@ -4,6 +4,10 @@
 {% block page_title %}Attempt #{{ sub.id }}{% endblock %}
 {% block topbar_actions %}
 {% if current_user.is_admin and not sub.completed %}<a class="btn" href="{{ url_for('admin.live_view', sub_id=sub.id) }}">{{ icon('activity') }} Live view</a>{% endif %}
+{% if current_user.is_admin %}
+<a class="btn btn-ghost" href="{{ url_for('admin.submission_replay', sub_id=sub.id) }}">{{ icon('activity') }} Replay</a>
+<a class="btn btn-ghost" href="{{ url_for('admin.submission_report_pdf', sub_id=sub.id) }}">{{ icon('file') }} Evidence report</a>
+{% endif %}
 <a class="btn btn-ghost" href="{{ url_for(ns ~ '.results') }}">{{ icon('chevron') }} Back</a>
 {% endblock %}
 {% block dash %}

@@ -10,6 +10,7 @@ from sqlalchemy import func
 from ..extensions import db
 from ..models import Exam, Submission, Violation, ProctorSnapshot, User
 from ..services import get_active_submission, upsert_answer
+from ..audit import log_action
 from .. import proctoring
 from .. import framestore
 from .. import settings as settings_store
@@ -261,6 +262,106 @@ def live_wall_feed():
     priority = {"High Risk": 0, "Disconnected": 1, "Active": 2, "Locked": 3}
     rows.sort(key=lambda r: (priority.get(r["status"], 9), r["student"].lower()))
     return jsonify(rows)
+
+
+@api_bp.route("/submission/<int:sub_id>/flag", methods=["POST"])
+@login_required
+def flag_moment(sub_id):
+    """
+    Preserve what the proctor is looking at right now as flagged evidence.
+
+    Live frames are overwritten by the next capture and deleted entirely when
+    the attempt is graded, so a flag that merely pointed at "the live frame"
+    would point at nothing an hour later. Copying the bytes into a snapshot is
+    what makes the flag survive into the evidence report.
+
+    The webcam frame is preferred because it identifies the person; the screen
+    is the fallback when the exam runs without a camera.
+    """
+    _admin_only()
+    sub = db.session.get(Submission, sub_id)
+    if sub is None:
+        abort(404)
+
+    for kind in ("cam", "screen"):
+        data = framestore.load_live_frame(sub_id, kind)
+        if data:
+            snap = framestore.save_snapshot_bytes(sub, data, flagged=True)
+            if snap is None:
+                break
+            db.session.commit()
+            log_action("flag_moment", f"submission {sub.id}", f"{kind} frame")
+            return jsonify({"ok": True, "kind": kind, "snapshot_id": snap.id})
+
+    return jsonify({"ok": False, "reason": "no live frame to capture"}), 200
+
+
+@api_bp.route("/submission/<int:sub_id>/replay")
+@login_required
+def replay_feed(sub_id):
+    """
+    Everything recorded during one attempt, on a single timeline.
+
+    The point of merging snapshots and violations into one ordered list is that
+    the question a reviewer actually asks is "what did the camera show at the
+    moment the tab was switched?" — which is unanswerable while the two sit in
+    separate tables on separate pages.
+
+    Offsets are seconds from the start of the attempt, so the client can place
+    events on a track without re-deriving them from timestamps.
+    """
+    _admin_only()
+    sub = db.session.get(Submission, sub_id)
+    if sub is None:
+        abort(404)
+
+    start = sub.started_at
+    end = sub.completed_at or sub.last_heartbeat or datetime.utcnow()
+
+    def offset(when):
+        if not when or not start:
+            return 0
+        return max(0, int((when - start).total_seconds()))
+
+    snapshots = [
+        {
+            "t": offset(s.captured_at),
+            "at": s.captured_at.isoformat() + "Z" if s.captured_at else None,
+            "id": s.id,
+            "flagged": bool(s.flagged),
+            "url": url_for("admin.snapshot_image", snap_id=s.id),
+        }
+        for s in sorted(sub.snapshots, key=lambda s: s.captured_at or datetime.min)
+    ]
+
+    violations = [
+        {
+            "t": offset(v.timestamp),
+            "at": v.timestamp.isoformat() + "Z" if v.timestamp else None,
+            "type": v.violation_type,
+            "severity": proctoring.severity_for(v.violation_type),
+            "details": v.details or "",
+        }
+        for v in sorted(sub.violations, key=lambda v: v.timestamp or datetime.min)
+    ]
+
+    student = db.session.get(User, sub.student_id)
+    exam = db.session.get(Exam, sub.exam_id)
+
+    return jsonify({
+        "submission_id": sub.id,
+        "student": (student.full_name or student.username) if student else "Unknown",
+        "exam": exam.title if exam else "Unknown exam",
+        "status": sub.status_label(),
+        "started_at": start.isoformat() + "Z" if start else None,
+        # Total length of the track. Falls back to 1 so the client never divides
+        # by zero on an attempt that was abandoned in its first second.
+        "duration": max(1, offset(end)),
+        "severity": proctoring.total_severity(sub),
+        "limit": proctoring.max_violations_for(exam),
+        "snapshots": snapshots,
+        "violations": violations,
+    })
 
 
 @api_bp.route("/violation-stats")

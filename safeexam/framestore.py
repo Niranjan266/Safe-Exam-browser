@@ -138,6 +138,37 @@ def save_snapshot(submission, file_storage):
     return snap
 
 
+def save_snapshot_bytes(submission, data, flagged=False):
+    """
+    Persist raw JPEG bytes as a snapshot.
+
+    Used when a proctor flags a moment on the live wall: the live frame they are
+    looking at is about to be overwritten by the next one and is deleted outright
+    when the attempt is graded, so "flagging" has to copy it into the snapshot
+    table or the evidence is gone by the time anyone reviews it.
+    """
+    if not data:
+        return None
+
+    ts = datetime.utcnow().strftime("%Y%m%d%H%M%S%f")
+    fname = secure_filename(f"sub{submission.id}_{ts}.jpg")
+    snap = ProctorSnapshot(
+        submission_id=submission.id,
+        student_id=submission.student_id,
+        exam_id=submission.exam_id,
+        filename=fname,
+        flagged=bool(flagged),
+    )
+    if use_db():
+        snap.image = data
+    else:
+        with open(os.path.join(current_app.config["SNAPSHOT_DIR"], fname), "wb") as fh:
+            fh.write(data)
+
+    db.session.add(snap)
+    return snap
+
+
 def load_snapshot(snap):
     """Return a snapshot's JPEG bytes, whichever backend wrote it."""
     if snap.image:

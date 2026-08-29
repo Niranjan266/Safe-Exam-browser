@@ -5,6 +5,7 @@
 {% block head %}<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>{% endblock %}
 {% block topbar_actions %}
 <a class="btn btn-ghost" href="{{ url_for('admin.report_csv') }}">{{ icon('download') }} CSV</a>
+<a class="btn btn-ghost" href="{{ url_for('admin.violations_csv') }}">{{ icon('download') }} Violations CSV</a>
 <a class="btn btn-ghost" href="{{ url_for('admin.report_pdf') }}">{{ icon('download') }} PDF report</a>
 <a class="btn" href="{{ url_for('admin.live_wall') }}">{{ icon('eye') }} Live wall</a>
 {% endblock %}

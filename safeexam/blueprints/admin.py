@@ -34,6 +34,7 @@ from ..decorators import admin_required
 from ..audit import log_action
 from .. import proctoring
 from .. import framestore
+from .. import reports
 from .. import settings as settings_store
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
@@ -47,6 +48,16 @@ def _pass_mark_for(exam):
 
 def _percent(score, total):
     return round((score or 0) / total * 100) if total else 0
+
+
+def _parse_date(value):
+    """YYYY-MM-DD from a query string, or None. A bad date is ignored, not fatal."""
+    if not value:
+        return None
+    try:
+        return datetime.strptime(value.strip(), "%Y-%m-%d")
+    except (ValueError, AttributeError):
+        return None
 
 
 def _all_class_choices():
@@ -775,6 +786,94 @@ def report_csv():
     fname = f"safeexam_exam{exam_id}.csv" if exam_id else "safeexam_report.csv"
     return Response(output.getvalue(), mimetype="text/csv",
                     headers={"Content-Disposition": f"attachment; filename={fname}"})
+
+
+@admin_bp.route("/submissions/<int:sub_id>/replay")
+@admin_required
+def submission_replay(sub_id):
+    """
+    Reconstruct one finished attempt on a scrubbable timeline.
+
+    The live wall answers "what is happening now". This answers "what happened
+    then" — the review that actually decides a malpractice case, and the one
+    the system previously had no page for.
+    """
+    sub = db.session.get(Submission, sub_id) or abort(404)
+    student = db.session.get(User, sub.student_id)
+    exam = db.session.get(Exam, sub.exam_id)
+    return render_template("admin/replay.html", sub=sub, student=student, exam=exam)
+
+
+@admin_bp.route("/violations.csv")
+@admin_required
+def violations_csv():
+    """
+    The submission-level report says a candidate had 7 violations. This one says
+    which 7, when, and what was typed — the raw rows, for analysis outside the app.
+
+    Filters: exam_id, and from/to as YYYY-MM-DD (inclusive of the whole 'to' day).
+    """
+    exam_id = request.args.get("exam_id", type=int)
+    date_from = _parse_date(request.args.get("from"))
+    date_to = _parse_date(request.args.get("to"))
+
+    query = (
+        db.session.query(Violation, User.username, Exam.title)
+        .join(User, User.id == Violation.student_id)
+        .join(Exam, Exam.id == Violation.exam_id)
+    )
+    if exam_id:
+        query = query.filter(Violation.exam_id == exam_id)
+    if date_from:
+        query = query.filter(Violation.timestamp >= date_from)
+    if date_to:
+        # 'to' names a day, not an instant; include everything within it.
+        query = query.filter(Violation.timestamp < date_to + timedelta(days=1))
+
+    rows = query.order_by(Violation.timestamp.desc()).limit(50000).all()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["Violation", "Timestamp (UTC)", "Student", "Exam",
+                     "Submission", "Type", "Severity", "Details"])
+    for v, username, exam_title in rows:
+        writer.writerow([
+            v.id,
+            v.timestamp.strftime("%Y-%m-%d %H:%M:%S") if v.timestamp else "",
+            username, exam_title,
+            v.submission_id or "",
+            v.violation_type,
+            # The effective weight, derived from the type — the same number
+            # proctoring.total_severity() adds up when deciding to terminate.
+            proctoring.severity_for(v.violation_type),
+            v.details or "",
+        ])
+
+    fname = f"safeexam_violations_exam{exam_id}.csv" if exam_id else "safeexam_violations.csv"
+    return Response(output.getvalue(), mimetype="text/csv",
+                    headers={"Content-Disposition": f"attachment; filename={fname}"})
+
+
+@admin_bp.route("/submissions/<int:sub_id>/report.pdf")
+@admin_required
+def submission_report_pdf(sub_id):
+    """Per-candidate evidence report — the document you attach to a finding."""
+    sub = db.session.get(Submission, sub_id) or abort(404)
+    student = db.session.get(User, sub.student_id)
+    exam = db.session.get(Exam, sub.exam_id)
+
+    buffer = reports.build_evidence_pdf(
+        sub, student, exam, pass_mark=_pass_mark_for(exam) if exam else None
+    )
+    # Viewing a candidate's evidence is itself an action worth recording.
+    log_action("evidence_report", f"submission {sub.id}")
+
+    who = (student.username if student else "unknown").replace(" ", "_")
+    return send_file(
+        buffer, as_attachment=True,
+        download_name=f"evidence_attempt{sub.id}_{who}.pdf",
+        mimetype="application/pdf",
+    )
 
 
 @admin_bp.route("/report.pdf")

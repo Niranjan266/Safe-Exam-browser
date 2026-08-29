@@ -40,7 +40,16 @@ def make_user(app, username, password, role):
         return u.id
 
 
+def logout(client):
+    return client.get("/logout", follow_redirects=True)
+
+
 def login(client, username, password):
+    # /login redirects an already-authenticated client straight to its
+    # dashboard without reading the form, so switching users mid-test silently
+    # kept the previous session and the next request ran as the wrong role.
+    # Clearing the session first is what makes "log in as admin" mean it.
+    logout(client)
     return client.post(
         "/login",
         data={"username": username, "password": password},
@@ -282,3 +291,153 @@ def test_admin_new_pages_render(app, client):
     for path in ["/admin/", "/admin/users", "/admin/users/new", "/admin/settings",
                  "/admin/audit", f"/admin/exams/{exam_id}/stats"]:
         assert client.get(path).status_code == 200, path
+
+
+# ---------------- monitoring & evidence reporting ----------------
+
+def _attempt_with_evidence(app, client, admin_id, exam_id, n_snaps=3):
+    """Run an attempt, record a violation, and attach webcam stills."""
+    import io as _io
+    from PIL import Image as _Img
+    from safeexam.models import Violation, ProctorSnapshot
+
+    make_user(app, "stu", "secret1", ROLE_STUDENT)
+    login(client, "stu", "secret1")
+    client.get(f"/exam/{exam_id}/start")
+    client.post(f"/exam/{exam_id}/submit", data={}, follow_redirects=True)
+
+    with app.app_context():
+        sub = Submission.query.filter_by(exam_id=exam_id).first()
+        sid, stu_id = sub.id, sub.student_id
+        start = sub.started_at or datetime.utcnow()
+        db.session.add(Violation(
+            submission_id=sid, student_id=stu_id, exam_id=exam_id,
+            violation_type="DevTools Suspected", details="window grew by 214px",
+            timestamp=start + timedelta(seconds=30)))
+        for i in range(n_snaps):
+            buf = _io.BytesIO()
+            _Img.new("RGB", (64, 48), (10 * i, 60, 120)).save(buf, "JPEG")
+            snap = ProctorSnapshot(
+                submission_id=sid, student_id=stu_id, exam_id=exam_id,
+                filename=f"t{i}.jpg", captured_at=start + timedelta(seconds=20 * i),
+                flagged=(i == 1))
+            snap.image = buf.getvalue()
+            db.session.add(snap)
+        db.session.commit()
+    return sid
+
+
+def test_evidence_pdf_is_generated(app, client):
+    admin_id = make_user(app, "adm", "secret1", ROLE_ADMIN)
+    exam_id = make_exam_with_questions(app, admin_id, n=2)
+    sid = _attempt_with_evidence(app, client, admin_id, exam_id)
+
+    login(client, "adm", "secret1")
+    r = client.get(f"/admin/submissions/{sid}/report.pdf")
+    assert r.status_code == 200
+    assert r.mimetype == "application/pdf"
+    assert r.data[:5] == b"%PDF-"
+    # The stills must be embedded, not linked, or the report is not evidence.
+    assert len(r.data) > 4000
+
+
+def test_evidence_pdf_never_prints_pass_for_a_disqualified_attempt(app, client):
+    admin_id = make_user(app, "adm", "secret1", ROLE_ADMIN)
+    exam_id = make_exam_with_questions(app, admin_id, n=2)
+    sid = _attempt_with_evidence(app, client, admin_id, exam_id, n_snaps=0)
+
+    from safeexam import reports
+    with app.app_context():
+        sub = db.session.get(Submission, sid)
+        sub.disqualified = True
+        sub.score, sub.total = 2, 2          # a perfect score...
+        db.session.commit()
+        text = reports.build_evidence_pdf(
+            sub, db.session.get(User, sub.student_id),
+            db.session.get(Exam, exam_id), pass_mark=40).getvalue()
+    # ...must still not be reported as a pass.
+    assert b"PASS" not in text
+
+
+def test_replay_feed_merges_violations_and_snapshots(app, client):
+    admin_id = make_user(app, "adm", "secret1", ROLE_ADMIN)
+    exam_id = make_exam_with_questions(app, admin_id, n=2)
+    sid = _attempt_with_evidence(app, client, admin_id, exam_id)
+
+    login(client, "adm", "secret1")
+    r = client.get(f"/api/submission/{sid}/replay")
+    assert r.status_code == 200
+    data = r.get_json()
+    assert len(data["violations"]) == 1
+    assert len(data["snapshots"]) == 3
+    assert data["duration"] >= 1
+    # Offsets, not wall-clock, are what the scrubber positions against.
+    assert data["violations"][0]["t"] == 30
+    assert [s["t"] for s in data["snapshots"]] == [0, 20, 40]
+    assert any(s["flagged"] for s in data["snapshots"])
+    assert client.get(f"/admin/submissions/{sid}/replay").status_code == 200
+
+
+def test_violations_csv_exports_rows_and_filters(app, client):
+    admin_id = make_user(app, "adm", "secret1", ROLE_ADMIN)
+    exam_id = make_exam_with_questions(app, admin_id, n=2)
+    _attempt_with_evidence(app, client, admin_id, exam_id, n_snaps=0)
+
+    login(client, "adm", "secret1")
+    r = client.get("/admin/violations.csv")
+    assert r.status_code == 200 and r.mimetype == "text/csv"
+    body = r.data.decode()
+    assert "DevTools Suspected" in body and "window grew by 214px" in body
+    # Severity must be the weight that actually counts toward termination.
+    assert ",3," in body
+    # A date window that excludes the attempt returns only the header row.
+    empty = client.get("/admin/violations.csv?from=2000-01-01&to=2000-01-02")
+    assert len([ln for ln in empty.data.decode().splitlines() if ln.strip()]) == 1
+    # A malformed date must be ignored, not raise.
+    assert client.get("/admin/violations.csv?from=not-a-date").status_code == 200
+
+
+def test_flagging_copies_the_live_frame_into_evidence(app, client):
+    import io as _io
+    from PIL import Image as _Img
+    from werkzeug.datastructures import FileStorage
+    from safeexam import framestore
+    from safeexam.models import ProctorSnapshot
+
+    admin_id = make_user(app, "adm", "secret1", ROLE_ADMIN)
+    exam_id = make_exam_with_questions(app, admin_id, n=2)
+    sid = _attempt_with_evidence(app, client, admin_id, exam_id, n_snaps=0)
+
+    with app.app_context():
+        buf = _io.BytesIO()
+        _Img.new("RGB", (64, 48), (200, 30, 30)).save(buf, "JPEG")
+        buf.seek(0)
+        framestore.save_live_frame(sid, "cam", FileStorage(buf))
+        db.session.commit()
+
+    login(client, "adm", "secret1")
+    r = client.post(f"/api/submission/{sid}/flag")
+    assert r.status_code == 200
+    assert r.get_json()["ok"] is True and r.get_json()["kind"] == "cam"
+    with app.app_context():
+        snaps = ProctorSnapshot.query.filter_by(submission_id=sid, flagged=True).all()
+        assert len(snaps) == 1
+        # The bytes must be copied, or the flag points at nothing once the
+        # attempt is graded and live frames are cleared. Read it back through
+        # framestore rather than the `image` column, because the disk backend
+        # stores the JPEG as a file and leaves that column null.
+        assert framestore.load_snapshot(snaps[0])
+
+
+def test_monitoring_endpoints_are_admin_only(app, client):
+    admin_id = make_user(app, "adm", "secret1", ROLE_ADMIN)
+    exam_id = make_exam_with_questions(app, admin_id, n=2)
+    sid = _attempt_with_evidence(app, client, admin_id, exam_id, n_snaps=0)
+
+    login(client, "stu", "secret1")          # the candidate, not an admin
+    assert client.get(f"/api/submission/{sid}/replay").status_code == 403
+    assert client.post(f"/api/submission/{sid}/flag").status_code == 403
+    for path in [f"/admin/submissions/{sid}/report.pdf",
+                 f"/admin/submissions/{sid}/replay",
+                 "/admin/violations.csv"]:
+        assert client.get(path).status_code in (302, 403), path

@@ -1,0 +1,231 @@
+{% extends "dash_base.html" %}
+{% from "partials/_macros.html" import icon %}
+{% block title %}Replay — {{ student.full_name or student.username if student else 'Attempt' }}{% endblock %}
+{% block page_title %}Attempt replay{% endblock %}
+{% block topbar_actions %}
+<a class="btn btn-ghost" href="{{ url_for('admin.submission_detail', sub_id=sub.id) }}">{{ icon('eye') }} Attempt details</a>
+<a class="btn" href="{{ url_for('admin.submission_report_pdf', sub_id=sub.id) }}">{{ icon('file') }} Evidence report</a>
+{% endblock %}
+{% block dash %}
+
+<div class="card">
+  <div class="row-between" style="flex-wrap:wrap; gap:12px;">
+    <div class="meta-row">
+      <span>{{ icon('user') }} <strong>{{ student.full_name or student.username if student else 'Unknown' }}</strong></span>
+      <span>{{ icon('file') }} {{ exam.title if exam else 'Unknown exam' }}</span>
+      <span class="tag" id="rpSeverity">—</span>
+    </div>
+    <div class="tag">Recorded evidence only — the candidate is not contacted or affected by this review.</div>
+  </div>
+</div>
+
+<div class="grid live-grid">
+  <div class="card live-stage">
+    <div class="live-head">
+      <span class="section-title" style="margin:0;">{{ icon('camera') }} Webcam at this moment</span>
+      <span class="badge" id="rpFlag" style="display:none;">FLAGGED</span>
+    </div>
+    <div class="live-screen-wrap">
+      <img id="rpImage" alt="Webcam still">
+      <div class="live-wait" id="rpWait">{{ icon('camera', 'ic-xl') }}<p>No webcam still at this point</p>
+        <span class="tag">Stills are captured periodically, so gaps are normal.</span></div>
+    </div>
+    <div class="divider"></div>
+    <p class="tag" id="rpStamp">—</p>
+  </div>
+
+  <div class="card">
+    <div class="section-title" style="margin:0 0 10px;">{{ icon('alert') }} Violations</div>
+    <div id="rpList" class="replay-list"><p class="empty">Loading…</p></div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="section-title">{{ icon('activity') }} Timeline</div>
+  <div class="replay-track" id="rpTrack">
+    <div class="replay-bar"></div>
+    <div class="replay-marks" id="rpMarks"></div>
+    <div class="replay-head" id="rpHead"></div>
+  </div>
+  <input type="range" id="rpRange" min="0" max="100" value="0" step="1" style="width:100%; margin-top:10px;">
+  <div class="row-between" style="margin-top:8px;">
+    <div class="btn-row">
+      <button class="btn btn-sm" id="rpPlay">{{ icon('activity') }} Play</button>
+      <button class="btn btn-sm btn-ghost" id="rpPrev">‹ Previous violation</button>
+      <button class="btn btn-sm btn-ghost" id="rpNext">Next violation ›</button>
+    </div>
+    <span class="tag" id="rpClock">0m 00s</span>
+  </div>
+</div>
+
+<style>
+  .replay-track { position: relative; height: 34px; margin-top: 6px; }
+  .replay-bar { position: absolute; top: 14px; left: 0; right: 0; height: 6px;
+                background: var(--border, #e2e8f0); border-radius: 3px; }
+  .replay-marks { position: absolute; inset: 0; }
+  /* Violation markers: height encodes severity so a dev-tools probe reads
+     louder than a stray keystroke at a glance. */
+  .replay-mark { position: absolute; top: 6px; width: 3px; border-radius: 2px;
+                 background: var(--danger, #dc2626); cursor: pointer; }
+  .replay-mark.snap { top: 21px; height: 6px; width: 2px; background: #94a3b8; cursor: default; }
+  .replay-head { position: absolute; top: 4px; width: 2px; height: 26px;
+                 background: var(--primary, #2563eb); transition: left .08s linear; }
+  .replay-list { max-height: 320px; overflow-y: auto; }
+  .replay-item { display: flex; gap: 8px; align-items: baseline; padding: 6px 4px;
+                 border-bottom: 1px solid var(--border, #e2e8f0); cursor: pointer; font-size: 13px; }
+  .replay-item:hover { background: var(--bg-soft, #f8fafc); }
+  .replay-item.active { background: #fef2f2; }
+  .replay-item .rt { font-variant-numeric: tabular-nums; color: var(--muted, #64748b); min-width: 62px; }
+  #rpImage { display: none; width: 100%; }
+</style>
+
+<script>
+(function () {
+  "use strict";
+  var FEED = "{{ url_for('api.replay_feed', sub_id=sub.id) }}";
+  var img = document.getElementById("rpImage");
+  var wait = document.getElementById("rpWait");
+  var stamp = document.getElementById("rpStamp");
+  var flag = document.getElementById("rpFlag");
+  var range = document.getElementById("rpRange");
+  var head = document.getElementById("rpHead");
+  var marks = document.getElementById("rpMarks");
+  var list = document.getElementById("rpList");
+  var clock = document.getElementById("rpClock");
+  var sevEl = document.getElementById("rpSeverity");
+  var playBtn = document.getElementById("rpPlay");
+
+  var data = null, timer = null, shownId = null;
+
+  function fmt(sec) { return Math.floor(sec / 60) + "m " + String(sec % 60).padStart(2, "0") + "s"; }
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+
+  /* The still that was current AT time t — i.e. the most recent one at or
+     before t, not the nearest. Showing a frame captured after the violation
+     would misrepresent what the camera saw when it happened. */
+  function snapshotAt(t) {
+    var found = null;
+    for (var i = 0; i < data.snapshots.length; i++) {
+      if (data.snapshots[i].t <= t) found = data.snapshots[i]; else break;
+    }
+    return found;
+  }
+
+  function render(t) {
+    clock.textContent = fmt(t);
+    head.style.left = (t / data.duration * 100) + "%";
+
+    var snap = snapshotAt(t);
+    if (snap) {
+      if (snap.id !== shownId) { img.src = snap.url; shownId = snap.id; }
+      img.style.display = "block";
+      wait.style.display = "none";
+      stamp.textContent = "Still captured " + fmt(snap.t) + " into the attempt"
+                        + (snap.at ? " (" + snap.at.replace("T", " ").replace("Z", " UTC") + ")" : "");
+      flag.style.display = snap.flagged ? "inline-flex" : "none";
+      flag.className = "badge badge-danger";
+    } else {
+      img.style.display = "none";
+      wait.style.display = "flex";
+      shownId = null;
+      stamp.textContent = "No still had been captured yet at " + fmt(t);
+      flag.style.display = "none";
+    }
+
+    // Highlight the violation at or just before the playhead.
+    var active = -1;
+    for (var i = 0; i < data.violations.length; i++) {
+      if (data.violations[i].t <= t) active = i; else break;
+    }
+    Array.prototype.forEach.call(list.querySelectorAll(".replay-item"), function (el, i) {
+      el.classList.toggle("active", i === active);
+    });
+  }
+
+  function seek(t) {
+    t = Math.max(0, Math.min(data.duration, Math.round(t)));
+    range.value = t;
+    render(t);
+  }
+
+  function stop() {
+    if (timer) { clearInterval(timer); timer = null; }
+    playBtn.textContent = "Play";
+  }
+
+  playBtn.addEventListener("click", function () {
+    if (timer) { stop(); return; }
+    // 4x real time: fast enough to scan a 40 minute attempt, slow enough to watch.
+    playBtn.textContent = "Pause";
+    timer = setInterval(function () {
+      var t = parseInt(range.value, 10) + 4;
+      if (t >= data.duration) { seek(data.duration); stop(); return; }
+      seek(t);
+    }, 1000);
+  });
+
+  document.getElementById("rpNext").addEventListener("click", function () {
+    var t = parseInt(range.value, 10);
+    for (var i = 0; i < data.violations.length; i++) {
+      if (data.violations[i].t > t) { stop(); seek(data.violations[i].t); return; }
+    }
+  });
+  document.getElementById("rpPrev").addEventListener("click", function () {
+    var t = parseInt(range.value, 10);
+    for (var i = data.violations.length - 1; i >= 0; i--) {
+      if (data.violations[i].t < t) { stop(); seek(data.violations[i].t); return; }
+    }
+  });
+  range.addEventListener("input", function () { stop(); render(parseInt(range.value, 10)); });
+
+  fetch(FEED, { cache: "no-store" })
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      data = d;
+      range.max = d.duration;
+      sevEl.textContent = "Severity " + d.severity + " / " + d.limit
+                        + " · " + d.violations.length + " violation(s) · "
+                        + d.snapshots.length + " still(s)";
+
+      d.snapshots.forEach(function (s) {
+        var m = document.createElement("div");
+        m.className = "replay-mark snap";
+        m.style.left = (s.t / d.duration * 100) + "%";
+        marks.appendChild(m);
+      });
+
+      d.violations.forEach(function (v, i) {
+        var m = document.createElement("div");
+        m.className = "replay-mark";
+        m.style.left = (v.t / d.duration * 100) + "%";
+        m.style.height = Math.min(18, 6 + v.severity * 4) + "px";
+        m.title = v.type + " at " + fmt(v.t);
+        m.addEventListener("click", function () { stop(); seek(v.t); });
+        marks.appendChild(m);
+
+        var row = document.createElement("div");
+        row.className = "replay-item";
+        row.innerHTML = '<span class="rt">' + fmt(v.t) + "</span>" +
+                        "<span><strong>" + esc(v.type) + "</strong>" +
+                        (v.details ? '<br><span class="tag">' + esc(v.details) + "</span>" : "") +
+                        "</span>";
+        row.addEventListener("click", function () { stop(); seek(v.t); });
+        if (i === 0) list.innerHTML = "";
+        list.appendChild(row);
+      });
+
+      if (!d.violations.length) {
+        list.innerHTML = '<p class="empty">No violations were recorded during this attempt.</p>';
+      }
+      seek(0);
+    })
+    .catch(function () {
+      list.innerHTML = '<p class="empty">Could not load the replay for this attempt.</p>';
+    });
+})();
+</script>
+{% endblock %}
