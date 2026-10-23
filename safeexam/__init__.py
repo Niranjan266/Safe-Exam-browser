@@ -6,14 +6,13 @@ exam environment, server-enforced timing, real-time proctoring/violation
 monitoring and exportable reports.
 """
 import os
-from datetime import datetime
-
-from flask import Flask, render_template, redirect, url_for
+from flask import Flask, render_template
 from flask_login import current_user
 from dotenv import load_dotenv
 
 from .extensions import db, login_manager, csrf
 from config import get_config
+from .timeutil import utcnow
 
 APP_NAME = "SafeExam"
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
@@ -317,7 +316,7 @@ def _register_context(app):
         return {
             "APP_NAME": APP_NAME,
             "APP_TAGLINE": "Secure Examination Platform",
-            "current_year": datetime.utcnow().year,
+            "current_year": utcnow().year,
             "policy": policy,
             "ns": ns,
             # Templates use this to choose the live transport: push over a

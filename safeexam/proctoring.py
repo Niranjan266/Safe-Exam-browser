@@ -5,11 +5,12 @@ server-side rules that lock or disqualify an attempt.
 Keeping this in one place means the exam page, the API and the live monitor
 all agree on what "High Risk" or "Disqualified" means.
 """
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 from .extensions import db
 from .models import Violation
 from . import settings
+from .timeutil import utcnow
 
 # Weight each violation type contributes toward termination.
 # Higher = more serious. Unknown types default to 1.
@@ -56,7 +57,7 @@ def record_violation(submission, violation_type, details=None):
         violation_type=violation_type,
         severity=severity_for(violation_type),
         details=details,
-        timestamp=datetime.utcnow(),
+        timestamp=utcnow(),
     )
     db.session.add(v)
     db.session.flush()  # assign id without full commit yet
@@ -69,7 +70,7 @@ def total_severity(submission):
 
 def recent_violation_count(submission, window_seconds=None, now=None):
     window_seconds = window_seconds or settings.get_int("risk_window_seconds")
-    now = now or datetime.utcnow()
+    now = now or utcnow()
     cutoff = now - timedelta(seconds=window_seconds)
     return (
         Violation.query.filter(
@@ -117,7 +118,7 @@ def evaluate(submission):
 
 def live_status(submission, now=None):
     """Status string used by the admin live monitor."""
-    now = now or datetime.utcnow()
+    now = now or utcnow()
     if submission.disqualified:
         return "Disqualified"
     if submission.completed:

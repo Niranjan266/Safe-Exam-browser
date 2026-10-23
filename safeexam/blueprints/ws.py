@@ -25,6 +25,7 @@ from ..extensions import db
 from ..livehub import hub
 from ..models import Submission, Exam
 from .. import framestore
+from ..timeutil import utcnow
 
 ws_bp = Blueprint("ws", __name__)
 
@@ -134,9 +135,7 @@ def register(sock):
                     )
                     sub_row = db.session.get(Submission, submission_id)
                     if sub_row is not None:
-                        from datetime import datetime
-
-                        sub_row.last_heartbeat = datetime.utcnow()
+                        sub_row.last_heartbeat = utcnow()
                     db.session.commit()
                 except Exception:
                     db.session.rollback()   # never let persistence kill the stream

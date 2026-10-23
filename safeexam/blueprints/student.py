@@ -1,9 +1,7 @@
 """Student-facing views: dashboard and the locked-down exam flow."""
 import random
-from datetime import datetime
-
 from flask import Blueprint, render_template, redirect, url_for, flash, request, abort
-from flask_login import login_required, current_user
+from flask_login import current_user
 
 from ..extensions import db
 from ..models import Exam
@@ -15,6 +13,7 @@ from ..services import (
     upsert_answer,
     grade_submission,
 )
+from ..timeutil import utcnow
 
 student_bp = Blueprint("student", __name__)
 
@@ -23,7 +22,7 @@ student_bp = Blueprint("student", __name__)
 @student_required
 def dashboard():
     exams = Exam.query.filter_by(is_published=True).order_by(Exam.created_at.desc()).all()
-    now = datetime.utcnow()
+    now = utcnow()
 
     cards = []
     for exam in exams:

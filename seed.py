@@ -6,7 +6,6 @@ Usage:
     # or
     flask --app app seed
 """
-from datetime import datetime
 
 from safeexam.extensions import db
 from safeexam.models import (

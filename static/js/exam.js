@@ -48,8 +48,10 @@
     terminated = true;
     SEBTimer.stop();
     if (window.SEBMonitoring) SEBMonitoring.stop();
-    lockUI();
+    // Submit first: lockUI() disables every form input, including the hidden
+    // csrf_token, and disabled controls are left out of the POST (CSRF 400).
     form.submit();
+    lockUI();
   }
 
   function onTerminate(reason, state) {

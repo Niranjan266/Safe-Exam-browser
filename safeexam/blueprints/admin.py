@@ -2,7 +2,7 @@
 analytics, results and reports."""
 import csv
 import io
-import os
+from urllib.parse import urlsplit
 from collections import defaultdict, Counter
 from datetime import datetime, timedelta
 
@@ -15,11 +15,9 @@ from flask import (
     request,
     abort,
     send_file,
-    send_from_directory,
-    current_app,
     Response,
 )
-from flask_login import login_required, current_user
+from flask_login import current_user
 from sqlalchemy import func
 
 from ..extensions import db
@@ -36,6 +34,7 @@ from .. import proctoring
 from .. import framestore
 from .. import reports
 from .. import settings as settings_store
+from ..timeutil import utcnow
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
 
@@ -91,7 +90,7 @@ def dashboard():
     }
 
     # Submissions trend (last 14 days)
-    since = datetime.utcnow() - timedelta(days=13)
+    since = utcnow() - timedelta(days=13)
     per_day = defaultdict(int)
     for s in Submission.query.filter(Submission.started_at >= since).all():
         per_day[s.started_at.strftime("%Y-%m-%d")] += 1
@@ -679,7 +678,7 @@ def submission_score(sub_id):
     sub.score = new_score
     if not sub.completed:
         sub.completed = True
-        sub.completed_at = datetime.utcnow()
+        sub.completed_at = utcnow()
     db.session.commit()
     log_action("submission.score_override", target=sub.id, detail=f"{new_score}/{total}")
     flash("Score updated.", "success")
@@ -687,8 +686,12 @@ def submission_score(sub_id):
 
 
 def _redirect_back():
-    target = request.form.get("next") or request.referrer or url_for("admin.monitor")
-    if target.startswith("/") and not target.startswith("//"):
+    target = request.form.get("next") or ""
+    if not target and request.referrer:
+        ref = urlsplit(request.referrer)
+        if ref.netloc == request.host:
+            target = ref.path + (f"?{ref.query}" if ref.query else "")
+    if target.startswith("/") and not target.startswith(("//", "/\\")):
         return redirect(target)
     return redirect(url_for("admin.monitor"))
 
@@ -890,7 +893,7 @@ def report_pdf():
     styles = getSampleStyleSheet()
     elements = [
         Paragraph("SafeExam — Examination Integrity Report", styles["Title"]),
-        Paragraph(datetime.utcnow().strftime("Generated %Y-%m-%d %H:%M UTC"), styles["Normal"]),
+        Paragraph(utcnow().strftime("Generated %Y-%m-%d %H:%M UTC"), styles["Normal"]),
         Spacer(1, 16),
     ]
     summary = [

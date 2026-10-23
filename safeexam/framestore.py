@@ -13,13 +13,13 @@ Two backends, chosen by config["FRAME_STORAGE"]:
 Both backends present the same API so the views do not care which is active.
 """
 import os
-from datetime import datetime
 
 from flask import current_app
 from werkzeug.utils import secure_filename
 
 from .extensions import db
 from .models import LiveFrame, ProctorSnapshot
+from .timeutil import utcnow
 
 
 def _mode():
@@ -43,7 +43,7 @@ def save_live_frame(submission_id, kind, file_storage):
             row = LiveFrame(submission_id=submission_id, kind=kind)
             db.session.add(row)
         row.image = data
-        row.updated_at = datetime.utcnow()
+        row.updated_at = utcnow()
         return True
 
     fname = secure_filename(f"sub{submission_id}_{kind}.jpg")
@@ -117,7 +117,7 @@ def clear_live_frames(submission_id):
 
 def save_snapshot(submission, file_storage):
     """Persist a webcam still for later review and return the ProctorSnapshot."""
-    ts = datetime.utcnow().strftime("%Y%m%d%H%M%S%f")
+    ts = utcnow().strftime("%Y%m%d%H%M%S%f")
     fname = secure_filename(f"sub{submission.id}_{ts}.jpg")
 
     snap = ProctorSnapshot(
@@ -150,7 +150,7 @@ def save_snapshot_bytes(submission, data, flagged=False):
     if not data:
         return None
 
-    ts = datetime.utcnow().strftime("%Y%m%d%H%M%S%f")
+    ts = utcnow().strftime("%Y%m%d%H%M%S%f")
     fname = secure_filename(f"sub{submission.id}_{ts}.jpg")
     snap = ProctorSnapshot(
         submission_id=submission.id,

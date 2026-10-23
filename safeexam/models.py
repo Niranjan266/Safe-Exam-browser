@@ -1,11 +1,12 @@
 """Database models for the Safe Exam Browser platform."""
-from datetime import datetime, timedelta
+from datetime import timedelta
 import secrets
 
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import UserMixin
 
 from .extensions import db, login_manager
+from .timeutil import utcnow
 
 # Roles
 ROLE_ADMIN = "admin"
@@ -35,7 +36,7 @@ class User(UserMixin, db.Model):
     full_name = db.Column(db.String(120))
     email = db.Column(db.String(160))
     active = db.Column(db.Boolean, default=True, nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=utcnow)
     last_login_at = db.Column(db.DateTime, nullable=True)
 
     exams_created = db.relationship("Exam", backref="creator", lazy=True)
@@ -107,7 +108,7 @@ class SchoolClass(db.Model):
     active = db.Column(db.Boolean, default=True, nullable=False)
 
     teacher_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=utcnow)
 
     exams = db.relationship("Exam", backref="school_class", lazy=True)
 
@@ -141,7 +142,7 @@ class Exam(db.Model):
     description = db.Column(db.Text, default="")
     duration = db.Column(db.Integer, nullable=False)  # minutes
     created_by = db.Column(db.Integer, db.ForeignKey("users.id"))
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=utcnow)
 
     is_published = db.Column(db.Boolean, default=False, nullable=False)
     shuffle_questions = db.Column(db.Boolean, default=False, nullable=False)
@@ -176,7 +177,7 @@ class Exam(db.Model):
         """Published and within the optional availability window."""
         if not self.is_published:
             return False
-        now = now or datetime.utcnow()
+        now = now or utcnow()
         if self.available_from and now < self.available_from:
             return False
         if self.available_until and now > self.available_until:
@@ -184,7 +185,7 @@ class Exam(db.Model):
         return True
 
     def availability_label(self, now=None):
-        now = now or datetime.utcnow()
+        now = now or utcnow()
         if not self.is_published:
             return "Draft"
         if self.available_from and now < self.available_from:
@@ -238,7 +239,7 @@ class Submission(db.Model):
     score = db.Column(db.Integer, nullable=True)
     total = db.Column(db.Integer, nullable=True)
 
-    started_at = db.Column(db.DateTime, default=datetime.utcnow)
+    started_at = db.Column(db.DateTime, default=utcnow)
     completed_at = db.Column(db.DateTime, nullable=True)
     completed = db.Column(db.Boolean, default=False, nullable=False)
 
@@ -267,7 +268,7 @@ class Submission(db.Model):
         return self.started_at + timedelta(minutes=self.exam.duration)
 
     def seconds_remaining(self, now=None):
-        now = now or datetime.utcnow()
+        now = now or utcnow()
         return max(0, int((self.deadline() - now).total_seconds()))
 
     def is_expired(self, now=None):
@@ -321,7 +322,7 @@ class Violation(db.Model):
     violation_type = db.Column(db.String(120), nullable=False)
     severity = db.Column(db.Integer, default=1)  # weight toward termination
     details = db.Column(db.String(300), nullable=True)
-    timestamp = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    timestamp = db.Column(db.DateTime, default=utcnow, index=True)
 
     def __repr__(self):
         return f"<Violation {self.violation_type} s={self.student_id}>"
@@ -337,7 +338,7 @@ class ProctorSnapshot(db.Model):
     student_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
     exam_id = db.Column(db.Integer, db.ForeignKey("exams.id"), nullable=False)
     filename = db.Column(db.String(255), nullable=False)
-    captured_at = db.Column(db.DateTime, default=datetime.utcnow)
+    captured_at = db.Column(db.DateTime, default=utcnow)
     flagged = db.Column(db.Boolean, default=False)
     # When the host has no writable disk (e.g. Vercel), the JPEG is stored here
     # instead of on the filesystem. Exactly one of `filename` / `image` is used.
@@ -360,7 +361,7 @@ class LiveFrame(db.Model):
     submission_id = db.Column(db.Integer, db.ForeignKey("submissions.id"), nullable=False)
     kind = db.Column(db.String(10), nullable=False)  # 'screen' or 'cam'
     image = db.Column(db.LargeBinary, nullable=False)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=utcnow, onupdate=utcnow)
 
     __table_args__ = (
         db.UniqueConstraint("submission_id", "kind", name="uq_live_frame_kind"),
@@ -377,7 +378,7 @@ class AppSetting(db.Model):
 
     key = db.Column(db.String(60), primary_key=True)
     value = db.Column(db.String(255), nullable=False)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=utcnow, onupdate=utcnow)
 
 
 class AuditLog(db.Model):
@@ -392,7 +393,7 @@ class AuditLog(db.Model):
     target = db.Column(db.String(160))
     detail = db.Column(db.String(300))
     ip = db.Column(db.String(45))
-    timestamp = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    timestamp = db.Column(db.DateTime, default=utcnow, index=True)
 
     def __repr__(self):
         return f"<AuditLog {self.action} by {self.actor_name}>"

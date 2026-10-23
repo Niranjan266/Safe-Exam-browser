@@ -17,8 +17,6 @@ through `_own_exam` / `_own_class`, which 404s anything that is not theirs.
 import csv
 import io
 from collections import Counter
-from datetime import datetime
-
 from flask import (
     Blueprint, render_template, redirect, url_for, flash, request, abort, Response,
 )
@@ -27,7 +25,7 @@ from sqlalchemy import func
 
 from ..extensions import db
 from ..models import (
-    Exam, Question, Submission, Answer, Violation, User, SchoolClass, ROLE_STUDENT,
+    Exam, Question, Submission, Answer, Violation, User, SchoolClass,
 )
 from ..forms import ExamForm, QuestionForm, ImportQuestionsForm, ClassForm
 from ..decorators import teacher_required

@@ -23,6 +23,7 @@ import io
 from datetime import datetime
 
 from . import framestore, proctoring
+from .timeutil import utcnow
 
 # Layout constants for the snapshot contact sheet.
 SNAPS_PER_ROW = 3
@@ -163,7 +164,7 @@ def build_evidence_pdf(submission, student, exam, pass_mark=None):
     ))
     story.append(Spacer(1, 4))
     story.append(Paragraph(
-        datetime.utcnow().strftime("Generated %Y-%m-%d %H:%M UTC — all times in this report are UTC."),
+        utcnow().strftime("Generated %Y-%m-%d %H:%M UTC — all times in this report are UTC."),
         caption,
     ))
     story.append(Spacer(1, 14))

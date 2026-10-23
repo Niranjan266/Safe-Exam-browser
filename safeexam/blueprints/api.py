@@ -1,19 +1,18 @@
 """JSON API used by the exam page (client) and the admin live monitor."""
-import os
 from datetime import datetime
 
-from flask import Blueprint, request, jsonify, current_app, abort, url_for
+from flask import Blueprint, request, jsonify, abort, url_for
 from flask_login import login_required, current_user
-from werkzeug.utils import secure_filename
 from sqlalchemy import func
 
 from ..extensions import db
-from ..models import Exam, Submission, Violation, ProctorSnapshot, User
+from ..models import Exam, Submission, Violation, User
 from ..services import get_active_submission, upsert_answer
 from ..audit import log_action
 from .. import proctoring
 from .. import framestore
 from .. import settings as settings_store
+from ..timeutil import utcnow
 
 api_bp = Blueprint("api", __name__, url_prefix="/api")
 
@@ -56,8 +55,9 @@ def log_violation(exam_id):
         return jsonify({"status": "terminated", "terminated": True})
 
     data = request.get_json(silent=True) or {}
-    vtype = (data.get("type") or "Unknown").strip()[:120]
-    details = (data.get("details") or None)
+    vtype = str(data.get("type") or "Unknown").strip()[:120]
+    details = data.get("details")
+    details = str(details) if details else None
 
     proctoring.record_violation(sub, vtype, details)
     outcome = proctoring.evaluate(sub)
@@ -86,6 +86,8 @@ def save_answer(exam_id):
         question_id = int(data.get("question_id"))
     except (TypeError, ValueError):
         return jsonify({"ok": False, "error": "bad question_id"}), 400
+    if question_id not in {q.id for q in sub.exam.questions}:
+        return jsonify({"ok": False, "error": "unknown question"}), 400
     upsert_answer(sub, question_id, data.get("selected"))
     db.session.commit()
     return jsonify({"ok": True})
@@ -102,7 +104,7 @@ def heartbeat(exam_id):
     if sub is None:
         return jsonify({"exists": False})
     if sub.is_active:
-        sub.last_heartbeat = datetime.utcnow()
+        sub.last_heartbeat = utcnow()
         # Auto-grade if the clock ran out while the page was open.
         if sub.is_expired():
             from ..services import grade_submission
@@ -158,7 +160,7 @@ def live_frame(exam_id):
         return jsonify({"ok": False, "error": "no file"}), 400
     framestore.save_live_frame(sub.id, kind, file)
     # A live frame is also a presence signal.
-    sub.last_heartbeat = datetime.utcnow()
+    sub.last_heartbeat = utcnow()
     db.session.commit()
     return jsonify({"ok": True})
 
@@ -316,7 +318,7 @@ def replay_feed(sub_id):
         abort(404)
 
     start = sub.started_at
-    end = sub.completed_at or sub.last_heartbeat or datetime.utcnow()
+    end = sub.completed_at or sub.last_heartbeat or utcnow()
 
     def offset(when):
         if not when or not start:

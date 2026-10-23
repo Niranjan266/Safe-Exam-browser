@@ -1,7 +1,7 @@
 """End-to-end tests for the SafeExam Flask app."""
 import os
 import tempfile
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 import pytest
 
@@ -13,6 +13,7 @@ os.environ["SEB_TEST_DATABASE_URI"] = "sqlite:///" + _DB_PATH
 from safeexam import create_app  # noqa: E402
 from safeexam.extensions import db  # noqa: E402
 from safeexam.models import User, Exam, Question, Submission, ROLE_ADMIN, ROLE_STUDENT  # noqa: E402
+from safeexam.timeutil import utcnow  # noqa: E402
 
 
 @pytest.fixture()
@@ -174,7 +175,7 @@ def test_expired_attempt_autocompletes(app, client):
     # Force the start time into the past so the attempt is expired.
     with app.app_context():
         sub = Submission.query.filter_by(exam_id=exam_id).first()
-        sub.started_at = datetime.utcnow() - timedelta(minutes=5)
+        sub.started_at = utcnow() - timedelta(minutes=5)
         db.session.commit()
 
     # Hitting start again should auto-grade and send to the result page.
@@ -309,7 +310,7 @@ def _attempt_with_evidence(app, client, admin_id, exam_id, n_snaps=3):
     with app.app_context():
         sub = Submission.query.filter_by(exam_id=exam_id).first()
         sid, stu_id = sub.id, sub.student_id
-        start = sub.started_at or datetime.utcnow()
+        start = sub.started_at or utcnow()
         db.session.add(Violation(
             submission_id=sid, student_id=stu_id, exam_id=exam_id,
             violation_type="DevTools Suspected", details="window grew by 214px",

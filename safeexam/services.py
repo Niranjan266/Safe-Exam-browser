@@ -1,8 +1,8 @@
 """Exam attempt services shared by the student views and the JSON API."""
-from datetime import datetime
 
 from .extensions import db
 from .models import Submission, Answer
+from .timeutil import utcnow
 
 
 def get_active_submission(student_id, exam_id):
@@ -28,8 +28,8 @@ def start_or_resume(student_id, exam):
         sub = Submission(
             student_id=student_id,
             exam_id=exam.id,
-            started_at=datetime.utcnow(),
-            last_heartbeat=datetime.utcnow(),
+            started_at=utcnow(),
+            last_heartbeat=utcnow(),
         )
         db.session.add(sub)
         db.session.commit()
@@ -38,7 +38,7 @@ def start_or_resume(student_id, exam):
 
 def upsert_answer(submission, question_id, selected):
     """Save (or update) the student's selected option for one question."""
-    if selected not in {"A", "B", "C", "D", None}:
+    if not isinstance(selected, str) or selected not in {"A", "B", "C", "D"}:
         selected = None
     ans = Answer.query.filter_by(submission_id=submission.id, question_id=question_id).first()
     if ans is None:
@@ -58,7 +58,7 @@ def grade_submission(submission, reason=None, commit=True):
     submission.score = score
     submission.total = len(questions)
     submission.completed = True
-    submission.completed_at = datetime.utcnow()
+    submission.completed_at = utcnow()
     if reason and not submission.termination_reason:
         submission.termination_reason = reason
 
