@@ -8,22 +8,45 @@
   <div class="panel">
     <div class="big-ic">{{ icon('shield-check') }}</div>
     <h2>{{ exam.title }}</h2>
-    <p>You are about to enter a secure, locked-down exam. The page will switch to full screen and your activity will be monitored.</p>
-    <div class="checklist">
-      <div>{{ icon('alert') }} <span>The <strong>keyboard is disabled</strong> — answer using the mouse only. Every key press is recorded as a violation.</span></div>
-      <div>{{ icon('lock') }} <span>Leaving full screen, switching tabs, copying, pasting and right-clicking are also recorded.</span></div>
-      <div>{{ icon('lock') }} After {{ exam.max_violations or policy.max_violations }} violations the attempt is terminated automatically.</div>
-      {% if exam.require_webcam %}
-        {% if policy.snapshot_interval > 0 %}<div>{{ icon('camera') }} Your webcam may capture periodic snapshots for proctor review.</div>{% endif %}
-      {% else %}
-        {# The checklist row is a flexbox, so the sentence must be a single child. #}
-        <div>{{ icon('camera') }} <span>The webcam is <strong>not used</strong> for this exam. Your screen is still monitored.</span></div>
-      {% endif %}
-      <div>{{ icon('maximize') }} <span>You must share your <strong>entire screen</strong> so a proctor can monitor your session live. Sharing a single tab or window is not accepted.</span></div>
-      <div>{{ icon('clock') }} You have {{ (seconds_remaining // 60) }} min {{ (seconds_remaining % 60) }} s remaining. Timing is enforced by the server.</div>
+    <p>You are about to enter a secure, locked-down exam. Nothing is recorded until you press <strong>Start exam</strong>.</p>
+
+    {# Permission prompts and the screen picker steal focus and drop full
+       screen, so they are all done here, before the lock-down starts. #}
+    <div class="gate-step">
+      <div class="gate-step-title">Step 1 — {{ 'Allow the camera and share' if exam.require_webcam else 'Share' }} your entire screen</div>
+      <button type="button" id="permBtn" class="btn-ghost">{{ icon('maximize') }} {{ 'Allow camera &amp; share screen'|safe if exam.require_webcam else 'Share screen' }}</button>
+      <div id="permOk" class="gate-ok" style="display:none;">{{ icon('check') }} Ready</div>
     </div>
+
+    <div class="gate-step">
+      <div class="gate-step-title">Step 2 — Read and tick every instruction</div>
+      <div class="checklist" id="gateChecklist">
+        <label><input type="checkbox" class="gate-tick"> {{ icon('alert') }} <span>The <strong>keyboard is disabled</strong> — answer using the mouse only. Every key press (Ctrl, Alt, Tab, letters…) is recorded as a violation.</span></label>
+        <label><input type="checkbox" class="gate-tick"> {{ icon('lock') }} <span>Leaving full screen, switching tabs, copying, pasting and right-clicking are also recorded.</span></label>
+        <label><input type="checkbox" class="gate-tick"> {{ icon('lock') }} <span>After {{ exam.max_violations or policy.max_violations }} violations the attempt is terminated automatically.</span></label>
+        {% if exam.require_webcam %}
+          {% if policy.snapshot_interval > 0 %}<label><input type="checkbox" class="gate-tick"> {{ icon('camera') }} <span>Your webcam may capture periodic snapshots for proctor review.</span></label>{% endif %}
+        {% else %}
+          <label><input type="checkbox" class="gate-tick"> {{ icon('camera') }} <span>The webcam is <strong>not used</strong> for this exam. Your screen is still monitored.</span></label>
+        {% endif %}
+        <label><input type="checkbox" class="gate-tick"> {{ icon('maximize') }} <span>My <strong>entire screen</strong> is shared so a proctor can monitor my session live.</span></label>
+        <label><input type="checkbox" class="gate-tick"> {{ icon('clock') }} <span>I have {{ (seconds_remaining // 60) }} min {{ (seconds_remaining % 60) }} s. Timing is enforced by the server.</span></label>
+      </div>
+    </div>
+
     <div id="gateError" class="gate-error" style="display:none;"></div>
-    <button id="startBtn">{{ icon('maximize') }} Enter secure mode &amp; begin</button>
+    <button id="startBtn" disabled>{{ icon('maximize') }} Start exam (full screen)</button>
+  </div>
+</div>
+
+{# Shown whenever the candidate drops out of full screen mid-exam. Going back
+   needs a click: browsers only allow full screen from a user gesture. #}
+<div class="overlay" id="fsGate" style="display:none;">
+  <div class="panel">
+    <div class="big-ic warning">{{ icon('alert') }}</div>
+    <h2>Full screen required</h2>
+    <p>You left full screen. This has been recorded. Return to full screen to continue your exam.</p>
+    <button type="button" id="fsBtn">{{ icon('maximize') }} Return to full screen</button>
   </div>
 </div>
 

@@ -38,9 +38,10 @@
       const el = document.documentElement;
       const fn = el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen;
       if (fn) {
-        try { return fn.call(el); } catch (e) { /* ignore */ }
+        // Older WebKit returns undefined rather than a promise.
+        try { return Promise.resolve(fn.call(el)); } catch (e) { return Promise.reject(e); }
       }
-      return Promise.reject();
+      return Promise.reject(new Error("fullscreen unsupported"));
     },
 
     isFullscreen() {

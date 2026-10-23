@@ -150,9 +150,24 @@
     },
 
     /* ---- Webcam: pip + record snapshots + live cam frames ---- */
+    /* Ask for the camera on the start gate, before the lock-down begins: the
+       permission prompt steals focus, which would otherwise be recorded as a
+       violation. Resolves to { ok, reason }. */
+    requestCamera() {
+      const md = navigator.mediaDevices;
+      if (!md || !md.getUserMedia) return Promise.resolve({ ok: false, reason: "unsupported" });
+      return md.getUserMedia({ video: { width: 320, height: 240 }, audio: false })
+        .then((stream) => { this._camStream = stream; return { ok: true }; })
+        .catch((err) => ({ ok: false, reason: "denied", error: String(err && err.name) }));
+    },
+
     _startWebcam() {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return;
-      navigator.mediaDevices.getUserMedia({ video: { width: 320, height: 240 }, audio: false })
+      // Reuse the stream the gate already acquired instead of prompting again.
+      const pre = this._camStream
+        ? Promise.resolve(this._camStream)
+        : navigator.mediaDevices.getUserMedia({ video: { width: 320, height: 240 }, audio: false });
+      pre
         .then((stream) => {
           this._camStream = stream;
           const pip = document.createElement("div");

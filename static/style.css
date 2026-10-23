@@ -302,7 +302,13 @@ tr:hover td { background: var(--bg-2); }
 .overlay .panel h2 { margin: 10px 0 8px; }
 .overlay .panel p { color: var(--muted); margin-bottom: 18px; }
 .overlay .checklist { text-align: left; color: var(--text-2); margin: 0 auto 22px; max-width: 440px; display: flex; flex-direction: column; gap: 10px; }
-.overlay .checklist div { display: flex; gap: 10px; align-items: flex-start; }
+.overlay .checklist div, .overlay .checklist label { display: flex; gap: 10px; align-items: flex-start; }
+.overlay .checklist label { cursor: pointer; }
+.overlay .checklist input[type="checkbox"] { width: 18px; height: 18px; margin-top: 2px; flex: none; accent-color: var(--primary); }
+.gate-step { margin: 0 auto 18px; max-width: 440px; text-align: left; }
+.gate-step-title { font-weight: 600; margin-bottom: 10px; }
+.gate-ok { display: flex; gap: 8px; align-items: center; color: var(--success); font-weight: 600; }
+.overlay button:disabled { opacity: .5; cursor: not-allowed; }
 .overlay .checklist .ic { color: var(--primary); margin-top: 2px; flex: none; }
 .gate-error { background: #FDECEC; border: 1px solid var(--danger); color: #8E2B2B; border-radius: 10px;
     padding: 12px 14px; margin: 0 auto 16px; max-width: 440px; text-align: left; font-size: 13.5px; line-height: 1.5; }

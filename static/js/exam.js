@@ -155,54 +155,100 @@
       box.textContent = msg;
       box.style.display = "block";
     }
-    if (startBtn) {
-      startBtn.disabled = false;
-      startBtn.textContent = "Retry — share your entire screen";
-    }
   }
 
-  /* Screen sharing is mandatory: the attempt does not open until the
-     candidate has shared a whole monitor. The browser always shows its own
-     picker for this — no web page can capture a screen silently. */
-  function beginExam() {
-    // Full screen MUST be requested first, synchronously inside the click.
-    // Awaiting the screen-share picker first consumes the user gesture, the
-    // fullscreen call then silently fails, and the resulting "Exited
-    // Fullscreen" events terminate the attempt the moment it opens.
-    SEBSecurity.requestFullscreen();
+  function clearGateError() {
+    const box = document.getElementById("gateError");
+    if (box) box.style.display = "none";
+  }
 
-    if (startBtn) {
-      startBtn.disabled = true;
-      startBtn.textContent = "Waiting for screen sharing…";
-    }
+  /* The gate runs in two steps so nothing that steals focus happens once the
+     lock-down is live:
+       1. camera permission + screen-share picker (both pop up native dialogs
+          that drop full screen and blur the window);
+       2. every instruction ticked -> "Start exam" enters full screen from that
+          click, and only once full screen is confirmed does SEBSecurity start
+          recording and blocking keys. */
+  const permBtn = document.getElementById("permBtn");
+  const permOk = document.getElementById("permOk");
+  const ticks = Array.prototype.slice.call(document.querySelectorAll(".gate-tick"));
+  const fsGate = document.getElementById("fsGate");
+  const fsBtn = document.getElementById("fsBtn");
+  let permsReady = false;
+  let started = false;
 
-    SEBMonitoring.requestScreen().then((res) => {
-      if (!res.ok) {
-        if (res.reason === "partial") {
-          gateError(
-            "You shared a single " + (res.surface === "browser" ? "tab" : "window") +
-            ". The proctor must be able to see your entire screen — choose the " +
-            '"Entire screen" option and share again.'
-          );
-        } else if (res.reason === "unsupported") {
-          gateError("This browser cannot share a screen. Please use Chrome, Edge or Firefox on a desktop computer.");
-        } else {
-          gateError("Screen sharing was declined. It is required for this exam — press retry and choose your entire screen.");
-        }
+  function refreshStart() {
+    if (startBtn) startBtn.disabled = !(permsReady && ticks.every((t) => t.checked));
+  }
+
+  function requestPermissions() {
+    clearGateError();
+    permBtn.disabled = true;
+    const wantCam = SEB.requireWebcam !== false;
+    const cam = wantCam ? SEBMonitoring.requestCamera() : Promise.resolve({ ok: true });
+    cam.then((c) => {
+      if (!c.ok) {
+        permBtn.disabled = false;
+        gateError(c.reason === "unsupported"
+          ? "This browser cannot use a camera. Please use Chrome, Edge or Firefox on a desktop computer."
+          : "Camera access was blocked. It is required for this exam — allow it in the address bar and try again.");
         return;
       }
+      return SEBMonitoring.requestScreen().then((res) => {
+        if (!res.ok) {
+          permBtn.disabled = false;
+          if (res.reason === "partial") {
+            gateError(
+              "You shared a single " + (res.surface === "browser" ? "tab" : "window") +
+              ". The proctor must be able to see your entire screen — choose the " +
+              '"Entire screen" option and share again.'
+            );
+          } else if (res.reason === "unsupported") {
+            gateError("This browser cannot share a screen. Please use Chrome, Edge or Firefox on a desktop computer.");
+          } else {
+            gateError("Screen sharing was declined. It is required for this exam — try again and choose your entire screen.");
+          }
+          return;
+        }
+        permsReady = true;
+        permBtn.style.display = "none";
+        if (permOk) permOk.style.display = "flex";
+        refreshStart();
+      });
+    });
+  }
+
+  function beginExam() {
+    if (started || !permsReady || !ticks.every((t) => t.checked)) return;
+    clearGateError();
+    startBtn.disabled = true;
+    // Called straight from the click so the browser accepts the request.
+    SEBSecurity.requestFullscreen().then(() => {
+      started = true;
       enterExam();
+    }).catch(() => {
+      gateError("The browser refused full screen. Press Start exam again.");
+      refreshStart();
+    });
+  }
+
+  function watchFullscreen() {
+    document.addEventListener("fullscreenchange", () => {
+      if (terminated) return;
+      if (fsGate) fsGate.style.display = SEBSecurity.isFullscreen() ? "none" : "flex";
+    });
+    if (fsBtn) fsBtn.addEventListener("click", () => {
+      SEBSecurity.requestFullscreen().catch(() => {});
     });
   }
 
   function enterExam() {
     if (gate) gate.style.display = "none";
 
-    // Re-assert full screen in case the share picker dropped out of it.
-    if (!SEBSecurity.isFullscreen()) SEBSecurity.requestFullscreen();
-
-    // graceMs covers the fullscreen/resize/focus churn of the first moments.
+    // Full screen is already confirmed; graceMs absorbs the resize/focus
+    // events the switch itself produces.
     SEBSecurity.init({ onViolation: handleViolation, graceMs: 2500 });
+    watchFullscreen();
 
     SEBMonitoring.init({
       urls: SEB.urls,
@@ -233,9 +279,11 @@
   }
 
   if (startBtn) {
+    ticks.forEach((t) => t.addEventListener("change", refreshStart));
+    if (permBtn) permBtn.addEventListener("click", requestPermissions);
     startBtn.addEventListener("click", beginExam);
   } else {
     // No gate present — begin immediately.
-    document.addEventListener("DOMContentLoaded", beginExam);
+    document.addEventListener("DOMContentLoaded", enterExam);
   }
 })();

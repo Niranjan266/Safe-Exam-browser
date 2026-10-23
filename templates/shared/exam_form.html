@@ -5,7 +5,7 @@
 {% block topbar_actions %}<a class="btn btn-ghost" href="{{ url_for(ns ~ '.exams') }}">{{ icon('chevron') }} Back</a>{% endblock %}
 {% block dash %}
 <div class="card" style="max-width:780px;">
-  <form method="POST" novalidate>
+  <form method="POST" novalidate id="examForm">
     {{ form.hidden_tag() }}
     <div class="form-group">
       {{ form.title.label }} {{ form.title(placeholder="e.g. Data Structures — Midterm") }}
@@ -47,11 +47,42 @@
     </div>
     <div class="two-col">
       <div class="form-group">{{ form.available_from.label }} {{ form.available_from() }}
-        <div class="helper-text">Optional — when candidates may begin.</div></div>
+        <div class="helper-text">Optional — when candidates may begin (your local time).</div></div>
       <div class="form-group">{{ form.available_until.label }} {{ form.available_until() }}
         {% for e in form.available_until.errors %}<div class="field-error">{{ e }}</div>{% endfor %}</div>
     </div>
     <button type="submit">{{ icon('check') }} {{ 'Save changes' if exam else 'Create exam' }}</button>
   </form>
 </div>
+<script>
+/* The server stores and compares these times in UTC, but a datetime-local
+   input means the browser's local time. Convert on the way in and out so an
+   exam set to open "now" is open now, not hours later. */
+(function () {
+  var form = document.getElementById("examForm");
+  var ids = ["available_from", "available_until"];
+  function pad(n) { return (n < 10 ? "0" : "") + n; }
+  function fmt(d, utc) {
+    return utc
+      ? d.getUTCFullYear() + "-" + pad(d.getUTCMonth() + 1) + "-" + pad(d.getUTCDate()) + "T" + pad(d.getUTCHours()) + ":" + pad(d.getUTCMinutes())
+      : d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()) + "T" + pad(d.getHours()) + ":" + pad(d.getMinutes());
+  }
+  ids.forEach(function (id) {
+    var el = document.getElementById(id);
+    if (el && el.value) {
+      var d = new Date(el.value + ":00Z");          // stored value is UTC
+      if (!isNaN(d)) el.value = fmt(d, false);
+    }
+  });
+  form.addEventListener("submit", function () {
+    ids.forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el && el.value) {
+        var d = new Date(el.value);                 // typed value is local
+        if (!isNaN(d)) el.value = fmt(d, true);
+      }
+    });
+  });
+})();
+</script>
 {% endblock %}
