@@ -25,9 +25,9 @@ from sqlalchemy import func
 
 from ..extensions import db
 from ..models import (
-    Exam, Question, Submission, Answer, Violation, User, SchoolClass,
+    Exam, Question, Submission, Answer, Violation, User, SchoolClass, ROLE_STUDENT,
 )
-from ..forms import ExamForm, QuestionForm, ImportQuestionsForm, ClassForm
+from ..forms import ExamForm, QuestionForm, ImportQuestionsForm, ClassForm, UserForm
 from ..decorators import teacher_required
 from ..audit import log_action
 from .. import settings as settings_store
@@ -211,6 +211,110 @@ def class_delete(class_id):
     log_action("class.delete", target=class_id, detail=code)
     flash("Class deleted.", "info")
     return redirect(url_for("teacher.classes"))
+
+
+# ======================= Students =======================
+# A teacher manages the student logins they created — never teachers, admins
+# or students another staff member made.
+
+def _own_student(user_id):
+    u = db.session.get(User, user_id)
+    if u is None or u.role != ROLE_STUDENT or u.created_by_id != current_user.id:
+        abort(404)
+    return u
+
+
+def _student_form(**kw):
+    form = UserForm(**kw)
+    del form.role  # a teacher can only ever create students
+    return form
+
+
+@teacher_bp.route("/students")
+@teacher_required
+def users():
+    q = (request.args.get("q") or "").strip()
+    query = User.query.filter_by(role=ROLE_STUDENT, created_by_id=current_user.id)
+    if q:
+        like = f"%{q}%"
+        query = query.filter(db.or_(User.username.ilike(like), User.full_name.ilike(like), User.email.ilike(like)))
+    people = query.order_by(User.created_at.desc()).all()
+    return render_template("shared/users.html", people=people, counts=None, q=q, role="")
+
+
+@teacher_bp.route("/students/new", methods=["GET", "POST"])
+@teacher_required
+def user_new():
+    form = _student_form()
+    if form.validate_on_submit():
+        if User.query.filter_by(username=form.username.data.strip()).first():
+            flash("That username is already taken.", "danger")
+            return render_template("shared/user_form.html", form=form, user=None)
+        if not form.password.data:
+            flash("A password is required for new students.", "danger")
+            return render_template("shared/user_form.html", form=form, user=None)
+        u = User(
+            username=form.username.data.strip(),
+            full_name=form.full_name.data or "",
+            email=form.email.data or "",
+            role=ROLE_STUDENT,
+            active=form.active.data,
+            created_by_id=current_user.id,
+        )
+        u.set_password(form.password.data)
+        db.session.add(u)
+        db.session.commit()
+        log_action("user.create", target=u.id, detail=u.username)
+        flash("Student login created.", "success")
+        return redirect(url_for("teacher.users"))
+    return render_template("shared/user_form.html", form=form, user=None)
+
+
+@teacher_bp.route("/students/<int:user_id>/edit", methods=["GET", "POST"])
+@teacher_required
+def user_edit(user_id):
+    u = _own_student(user_id)
+    form = _student_form(obj=u)
+    if form.validate_on_submit():
+        existing = User.query.filter_by(username=form.username.data.strip()).first()
+        if existing and existing.id != u.id:
+            flash("That username is already taken.", "danger")
+            return render_template("shared/user_form.html", form=form, user=u)
+        u.username = form.username.data.strip()
+        u.full_name = form.full_name.data or ""
+        u.email = form.email.data or ""
+        u.active = form.active.data
+        if form.password.data:
+            u.set_password(form.password.data)
+            log_action("user.reset_password", target=u.id, detail=u.username)
+        db.session.commit()
+        log_action("user.update", target=u.id, detail=u.username)
+        flash("Student updated.", "success")
+        return redirect(url_for("teacher.users"))
+    return render_template("shared/user_form.html", form=form, user=u)
+
+
+@teacher_bp.route("/students/<int:user_id>/toggle", methods=["POST"])
+@teacher_required
+def user_toggle(user_id):
+    u = _own_student(user_id)
+    u.active = not u.active
+    db.session.commit()
+    log_action("user.activate" if u.active else "user.deactivate", target=u.id, detail=u.username)
+    flash(f"Student {'activated' if u.active else 'deactivated'}.", "info")
+    return redirect(url_for("teacher.users"))
+
+
+@teacher_bp.route("/students/<int:user_id>/delete", methods=["POST"])
+@teacher_required
+def user_delete(user_id):
+    u = _own_student(user_id)
+    name = u.username
+    db.session.delete(u)
+    db.session.commit()
+    log_action("user.delete", target=user_id, detail=name)
+    flash("Student deleted.", "info")
+    return redirect(url_for("teacher.users"))
 
 
 # ======================= Exams =======================

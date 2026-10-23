@@ -442,3 +442,40 @@ def test_monitoring_endpoints_are_admin_only(app, client):
                  f"/admin/submissions/{sid}/replay",
                  "/admin/violations.csv"]:
         assert client.get(path).status_code in (302, 403), path
+
+
+def test_teacher_creates_and_manages_own_students(app, client):
+    from safeexam.models import ROLE_TEACHER
+    make_user(app, "teach", "secret1", ROLE_TEACHER)
+    other_id = make_user(app, "teach2", "secret1", ROLE_TEACHER)
+    login(client, "teach", "secret1")
+    assert client.get("/teacher/students").status_code == 200
+
+    # A "role" field is ignored: a teacher can only ever create students.
+    client.post("/teacher/students/new", data={
+        "username": "kid", "full_name": "Kid One", "active": "y",
+        "password": "secret1", "role": "admin",
+    }, follow_redirects=True)
+    with app.app_context():
+        kid = User.query.filter_by(username="kid").one()
+        assert kid.role == ROLE_STUDENT
+        kid_id = kid.id
+    assert b"Kid One" in client.get("/teacher/students").data
+
+    # Other staff accounts and other teachers' students are out of reach.
+    assert client.get(f"/teacher/students/{other_id}/edit").status_code == 404
+    admin_kid = make_user(app, "adminkid", "secret1", ROLE_STUDENT)
+    assert client.post(f"/teacher/students/{admin_kid}/delete").status_code == 404
+
+    client.post(f"/teacher/students/{kid_id}/toggle")
+    with app.app_context():
+        assert db.session.get(User, kid_id).active is False
+
+    # The new login works.
+    logout(client)
+    with app.app_context():
+        k = db.session.get(User, kid_id)
+        k.active = True
+        db.session.commit()
+    login(client, "kid", "secret1")
+    assert client.get("/student").status_code == 200

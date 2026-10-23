@@ -1,31 +1,35 @@
 {% extends "dash_base.html" %}
 {% from "partials/_macros.html" import icon %}
-{% block title %}Users — {{ APP_NAME }}{% endblock %}
-{% block page_title %}Users{% endblock %}
+{% block title %}{{ 'Users' if ns == 'admin' else 'My students' }} — {{ APP_NAME }}{% endblock %}
+{% block page_title %}{{ 'Users' if ns == 'admin' else 'My students' }}{% endblock %}
 {% block topbar_actions %}
-<a class="btn" href="{{ url_for('admin.user_new') }}">{{ icon('plus') }} New user</a>
+<a class="btn" href="{{ url_for(ns ~ '.user_new') }}">{{ icon('plus') }} {{ 'New user' if ns == 'admin' else 'New student' }}</a>
 {% endblock %}
 {% block dash %}
 
+{% if ns == 'admin' %}
 <div class="grid cols-4">
   <div class="kpi"><div class="kpi-ic">{{ icon('users') }}</div><div><div class="kpi-num">{{ counts.total }}</div><div class="kpi-label">Total users</div></div></div>
   <div class="kpi"><div class="kpi-ic">{{ icon('shield') }}</div><div><div class="kpi-num">{{ counts.admins }}</div><div class="kpi-label">Administrators</div></div></div>
   <div class="kpi warning"><div class="kpi-ic">{{ icon('clipboard') }}</div><div><div class="kpi-num">{{ counts.teachers }}</div><div class="kpi-label">Teachers</div></div></div>
   <div class="kpi success"><div class="kpi-ic">{{ icon('user') }}</div><div><div class="kpi-num">{{ counts.students }}</div><div class="kpi-label">Candidates</div></div></div>
 </div>
+{% endif %}
 
 <div class="card">
   <div class="toolbar">
     <form method="GET">
       <div class="search">{{ icon('search') }}<input type="text" name="q" value="{{ q }}" placeholder="Search name, username or email"></div>
+      {% if ns == 'admin' %}
       <select name="role" onchange="this.form.submit()">
         <option value="">All roles</option>
         <option value="admin" {{ 'selected' if role=='admin' }}>Administrators</option>
         <option value="teacher" {{ 'selected' if role=='teacher' }}>Teachers</option>
         <option value="student" {{ 'selected' if role=='student' }}>Candidates</option>
       </select>
+      {% endif %}
       <button class="btn btn-ghost" type="submit">{{ icon('search') }} Search</button>
-      {% if q or role %}<a class="btn btn-ghost" href="{{ url_for('admin.users') }}">Clear</a>{% endif %}
+      {% if q or role %}<a class="btn btn-ghost" href="{{ url_for(ns ~ '.users') }}">Clear</a>{% endif %}
     </form>
   </div>
 
@@ -44,12 +48,12 @@
           <td class="muted">{{ u.last_login_at.strftime('%Y-%m-%d %H:%M') if u.last_login_at else 'Never' }}</td>
           <td class="right">
             <div class="btn-row" style="justify-content:flex-end;">
-              <a class="btn btn-sm btn-ghost" href="{{ url_for('admin.user_edit', user_id=u.id) }}" title="Edit">{{ icon('edit') }}</a>
-              <form class="inline-form" method="POST" action="{{ url_for('admin.user_toggle', user_id=u.id) }}">
+              <a class="btn btn-sm btn-ghost" href="{{ url_for(ns ~ '.user_edit', user_id=u.id) }}" title="Edit">{{ icon('edit') }}</a>
+              <form class="inline-form" method="POST" action="{{ url_for(ns ~ '.user_toggle', user_id=u.id) }}">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button class="btn btn-sm {{ 'btn-warning' if u.active else 'btn-success' }}" title="{{ 'Deactivate' if u.active else 'Activate' }}">{{ icon('lock') if u.active else icon('unlock') }}</button>
               </form>
-              <form class="inline-form" method="POST" action="{{ url_for('admin.user_delete', user_id=u.id) }}" onsubmit="return confirm('Delete this user?');">
+              <form class="inline-form" method="POST" action="{{ url_for(ns ~ '.user_delete', user_id=u.id) }}" onsubmit="return confirm('Delete this user?');">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button class="btn btn-sm btn-danger" title="Delete">{{ icon('trash') }}</button>
               </form>
@@ -61,7 +65,7 @@
     </table>
   </div>
   {% else %}
-  <p class="empty">No users match your search.</p>
+  <p class="empty">{{ 'No users match your search.' if ns == 'admin' or q else 'No students yet — create the first login with New student.' }}</p>
   {% endif %}
 </div>
 {% endblock %}

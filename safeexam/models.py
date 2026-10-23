@@ -38,6 +38,8 @@ class User(UserMixin, db.Model):
     active = db.Column(db.Boolean, default=True, nullable=False)
     created_at = db.Column(db.DateTime, default=utcnow)
     last_login_at = db.Column(db.DateTime, nullable=True)
+    # Who made this login (admin or teacher); null for self-registered users.
+    created_by_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True, index=True)
 
     exams_created = db.relationship("Exam", backref="creator", lazy=True)
     submissions = db.relationship(

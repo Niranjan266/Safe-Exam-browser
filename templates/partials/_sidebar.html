@@ -23,6 +23,7 @@
         <a href="{{ url_for('teacher.dashboard') }}" class="{{ 'active' if ep == 'teacher.dashboard' }}">{{ icon('grid') }} Dashboard</a>
         <a href="{{ url_for('teacher.classes') }}" class="{{ 'active' if 'class' in ep }}">{{ icon('clipboard') }} My classes</a>
         <a href="{{ url_for('teacher.exams') }}" class="{{ 'active' if 'exam' in ep or 'question' in ep }}">{{ icon('file') }} My exams</a>
+        <a href="{{ url_for('teacher.users') }}" class="{{ 'active' if 'user' in ep }}">{{ icon('users') }} My students</a>
         <a href="{{ url_for('teacher.results') }}" class="{{ 'active' if ep in ['teacher.results', 'teacher.submission_detail'] }}">{{ icon('chart') }} Results</a>
 
         {% else %}

@@ -408,7 +408,7 @@ def users():
         "students": User.query.filter_by(role=ROLE_STUDENT).count(),
         "inactive": User.query.filter_by(active=False).count(),
     }
-    return render_template("admin/users.html", people=people, counts=counts, q=q, role=role)
+    return render_template("shared/users.html", people=people, counts=counts, q=q, role=role)
 
 
 @admin_bp.route("/users/new", methods=["GET", "POST"])
@@ -418,16 +418,17 @@ def user_new():
     if form.validate_on_submit():
         if User.query.filter_by(username=form.username.data.strip()).first():
             flash("That username is already taken.", "danger")
-            return render_template("admin/user_form.html", form=form, user=None)
+            return render_template("shared/user_form.html", form=form, user=None)
         if not form.password.data:
             flash("A password is required for new users.", "danger")
-            return render_template("admin/user_form.html", form=form, user=None)
+            return render_template("shared/user_form.html", form=form, user=None)
         u = User(
             username=form.username.data.strip(),
             full_name=form.full_name.data or "",
             email=form.email.data or "",
             role=form.role.data,
             active=form.active.data,
+            created_by_id=current_user.id,
         )
         u.set_password(form.password.data)
         db.session.add(u)
@@ -435,7 +436,7 @@ def user_new():
         log_action("user.create", target=u.id, detail=u.username)
         flash("User created.", "success")
         return redirect(url_for("admin.users"))
-    return render_template("admin/user_form.html", form=form, user=None)
+    return render_template("shared/user_form.html", form=form, user=None)
 
 
 @admin_bp.route("/users/<int:user_id>/edit", methods=["GET", "POST"])
@@ -447,11 +448,11 @@ def user_edit(user_id):
         existing = User.query.filter_by(username=form.username.data.strip()).first()
         if existing and existing.id != u.id:
             flash("That username is already taken.", "danger")
-            return render_template("admin/user_form.html", form=form, user=u)
+            return render_template("shared/user_form.html", form=form, user=u)
         # Guard: don't let an admin lock themselves out.
         if u.id == current_user.id and (not form.active.data or form.role.data != ROLE_ADMIN):
             flash("You cannot deactivate or demote your own account.", "warning")
-            return render_template("admin/user_form.html", form=form, user=u)
+            return render_template("shared/user_form.html", form=form, user=u)
         u.username = form.username.data.strip()
         u.full_name = form.full_name.data or ""
         u.email = form.email.data or ""
@@ -464,7 +465,7 @@ def user_edit(user_id):
         log_action("user.update", target=u.id, detail=u.username)
         flash("User updated.", "success")
         return redirect(url_for("admin.users"))
-    return render_template("admin/user_form.html", form=form, user=u)
+    return render_template("shared/user_form.html", form=form, user=u)
 
 
 @admin_bp.route("/users/<int:user_id>/toggle", methods=["POST"])
@@ -492,6 +493,8 @@ def user_delete(user_id):
         flash("Cannot delete the last administrator.", "warning")
         return redirect(url_for("admin.users"))
     name = u.username
+    # Logins this user created outlive them; just forget who made them.
+    User.query.filter_by(created_by_id=u.id).update({"created_by_id": None})
     db.session.delete(u)
     db.session.commit()
     log_action("user.delete", target=user_id, detail=name)
