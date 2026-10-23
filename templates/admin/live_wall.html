@@ -125,6 +125,11 @@
   var LIVE_WS = {{ 'true' if live_ws else 'false' }};
   var sockets = {};     // "subId:kind" -> WebSocket
   var blobUrls = {};    // "subId:kind" -> object URL currently shown
+  // "subId:kind" -> true once a pushed frame has arrived. Until then the tile
+  // shows the last frame the server stored, so a proctor opening the wall
+  // mid-exam sees the candidate immediately instead of "Waiting for screen…"
+  // until the next capture happens to land.
+  var pushed = {};
 
   function watch(subId, kind, imgEl) {
     if (!LIVE_WS) return false;
@@ -141,6 +146,7 @@
 
     ws.onmessage = function (ev) {
       if (typeof ev.data === "string") return;         // keep-alive ping
+      pushed[key] = true;                              // live frames take over
       var url = URL.createObjectURL(ev.data);
       imgEl.src = url;
       imgEl.style.display = "block";
@@ -153,6 +159,7 @@
     };
     ws.onclose = function () {
       delete sockets[key];
+      delete pushed[key];   // fall back to the stored frame again
       if (blobUrls[key]) { URL.revokeObjectURL(blobUrls[key]); delete blobUrls[key]; }
     };
     ws.onerror = function () { try { ws.close(); } catch (e) {} };
@@ -338,17 +345,21 @@
 
     // With a socket the frames arrive on their own; only fetch by URL when
     // we are polling.
-    var streaming = watch(row.submission_id, "screen", screen);
+    watch(row.submission_id, "screen", screen);
+    // A socket being open is not the same as a socket having delivered
+    // anything. Keep refreshing from the stored frame until the first pushed
+    // frame lands, then leave the picture to the socket.
+    var live = pushed[row.submission_id + ":screen"];
 
     if (row.has_screen) {
-      if (!streaming) {
+      if (!live) {
         screen.src = row.screen_url + "?t=" + stamp;
         screen.style.display = "block";
         wait.style.display = "none";
         mirrorToFocus(row.submission_id, "screen", screen.src);
       }
       liveTag.style.display = "flex";
-    } else if (!streaming) {
+    } else if (!live) {
       screen.style.display = "none";
       wait.style.display = "flex";
       liveTag.style.display = "none";
@@ -357,8 +368,8 @@
     var noCam = el.querySelector(".wall-nocam");
     var wantCam = row.webcam_enabled !== false && camToggle.checked;
     if (wantCam) {
-      var camStreaming = watch(row.submission_id, "cam", cam);
-      if (row.has_cam && !camStreaming) {
+      watch(row.submission_id, "cam", cam);
+      if (row.has_cam && !pushed[row.submission_id + ":cam"]) {
         cam.src = row.cam_url + "?t=" + stamp;
         cam.style.display = "block";
         mirrorToFocus(row.submission_id, "cam", cam.src);
