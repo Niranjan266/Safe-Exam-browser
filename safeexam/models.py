@@ -264,6 +264,8 @@ class Submission(db.Model):
     termination_reason = db.Column(db.String(200), nullable=True)
 
     last_heartbeat = db.Column(db.DateTime, nullable=True)
+    # Seconds a proctor granted this candidate beyond the exam duration.
+    extra_seconds = db.Column(db.Integer, default=0, nullable=False)
     attempt_token = db.Column(db.String(64), default=lambda: secrets.token_hex(16))
 
     violations = db.relationship(
@@ -281,7 +283,9 @@ class Submission(db.Model):
 
     # --- timing ---
     def deadline(self):
-        return self.started_at + timedelta(minutes=self.exam.duration)
+        return self.started_at + timedelta(
+            minutes=self.exam.duration, seconds=self.extra_seconds or 0
+        )
 
     def seconds_remaining(self, now=None):
         now = now or utcnow()

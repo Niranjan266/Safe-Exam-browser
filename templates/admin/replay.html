@@ -58,6 +58,12 @@
   </div>
 </div>
 
+<div class="card">
+  <div class="section-title">{{ icon('chart') }} Risk timeline
+    <span class="tag" style="margin-left:8px;">Cumulative weighted severity · click a point to jump there</span></div>
+  <div id="rpRiskWrap" style="width:100%;"><svg id="rpRisk" role="img" aria-label="Cumulative violation severity over the attempt" style="display:block; width:100%; height:140px;"></svg></div>
+</div>
+
 <style>
   .replay-track { position: relative; height: 34px; margin-top: 6px; }
   .replay-bar { position: absolute; top: 14px; left: 0; right: 0; height: 6px;
@@ -95,7 +101,50 @@
   var sevEl = document.getElementById("rpSeverity");
   var playBtn = document.getElementById("rpPlay");
 
-  var data = null, timer = null, shownId = null;
+  var data = null, timer = null, shownId = null, riskHead = null;
+  var RW = 0, RH = 140, RPAD = 28;
+  function riskX(t) { return RPAD + (t / data.duration) * (RW - RPAD - 12); }
+
+  function drawRisk() {
+    var svg = document.getElementById("rpRisk"), NS = "http://www.w3.org/2000/svg";
+    RW = document.getElementById("rpRiskWrap").clientWidth || 600;
+    svg.setAttribute("viewBox", "0 0 " + RW + " " + RH);
+    svg.innerHTML = "";
+    function el(name, attrs) {
+      var n = document.createElementNS(NS, name);
+      for (var k in attrs) n.setAttribute(k, attrs[k]);
+      svg.appendChild(n); return n;
+    }
+    var top = Math.max(data.limit || 1, data.severity || 0, 1);
+    function y(v) { return RH - 20 - (v / top) * (RH - 40); }
+    el("line", { x1: RPAD, x2: RW - 12, y1: y(0), y2: y(0), stroke: "currentColor", "stroke-opacity": ".25" });
+    if (data.limit) {
+      el("line", { x1: RPAD, x2: RW - 12, y1: y(data.limit), y2: y(data.limit),
+                   stroke: "#dc2626", "stroke-dasharray": "4 4", "stroke-opacity": ".7" });
+      var lt = el("text", { x: 2, y: y(data.limit) + 4, "font-size": 10, fill: "#dc2626" });
+      lt.textContent = data.limit;
+    }
+    var d = "M" + riskX(0) + " " + y(0), cur = 0;
+    data.violations.forEach(function (v) {
+      d += " L" + riskX(v.t) + " " + y(cur) + " L" + riskX(v.t) + " " + y(v.cum);
+      cur = v.cum;
+    });
+    d += " L" + riskX(data.duration) + " " + y(cur);
+    el("path", { d: d, fill: "none", stroke: "#2563eb", "stroke-width": 2 });
+    data.violations.forEach(function (v) {
+      var c = el("circle", { cx: riskX(v.t), cy: y(v.cum), r: 4 + v.severity,
+                             fill: "#dc2626", "fill-opacity": ".85", style: "cursor:pointer" });
+      var tt = document.createElementNS(NS, "title");
+      tt.textContent = v.type + " at " + fmt(v.t) + " (total " + v.cum + ")";
+      c.appendChild(tt);
+      c.addEventListener("click", function () { stop(); seek(v.t); });
+    });
+    riskHead = el("line", { x1: riskX(0), x2: riskX(0), y1: 4, y2: RH - 14,
+                            stroke: "#2563eb", "stroke-width": 1.5, "stroke-opacity": ".6" });
+  }
+  window.addEventListener("resize", function () {
+    if (data) { drawRisk(); render(parseInt(range.value, 10)); }
+  });
 
   function fmt(sec) { return Math.floor(sec / 60) + "m " + String(sec % 60).padStart(2, "0") + "s"; }
   function esc(s) {
@@ -117,6 +166,7 @@
 
   function render(t) {
     clock.textContent = fmt(t);
+    if (riskHead) { var rx = riskX(t); riskHead.setAttribute("x1", rx); riskHead.setAttribute("x2", rx); }
     head.style.left = (t / data.duration * 100) + "%";
 
     var snap = snapshotAt(t);
@@ -221,6 +271,7 @@
       if (!d.violations.length) {
         list.innerHTML = '<p class="empty">No violations were recorded during this attempt.</p>';
       }
+      drawRisk();
       seek(0);
     })
     .catch(function () {

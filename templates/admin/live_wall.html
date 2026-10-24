@@ -59,6 +59,7 @@
       <span class="badge" id="focusStatus"></span>
     </div>
     <div class="btn-row">
+      <button class="btn btn-sm" id="focusExtra" title="Give this candidate 5 more minutes">+5 min</button>
       <button class="btn btn-sm btn-warning" id="focusFlag">Flag this moment</button>
       <a class="btn btn-sm btn-ghost" id="focusOpen" href="#">Open attempt</a>
       <button class="btn btn-sm" id="focusClose">Close (Esc)</button>
@@ -117,6 +118,7 @@
   var focusSub = null;  // submission_id currently expanded, or null
 
   var FLAG_URL = "{{ url_for('api.flag_moment', sub_id=999999) }}";
+  var EXTRA_URL = "{{ url_for('api.extra_time', sub_id=999999) }}";
   var alertToggle = document.getElementById("alertOn");
 
   // When the host supports sockets, each tile keeps one open and frames are
@@ -272,6 +274,27 @@
     if (e.key === "Escape" && focusSub !== null) closeFocus();
   });
 
+  function grantTime(subId, minutes, btn) {
+    if (btn) btn.disabled = true;
+    return fetch(EXTRA_URL.replace("999999", subId), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ minutes: minutes }),
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        if (res.ok && rows[subId]) rows[subId].remaining = res.remaining;
+        if (btn) btn.title = res.ok ? "Added " + res.minutes + " min" : (res.reason || "Failed");
+        return res;
+      })
+      .catch(function () {})
+      .then(function () { if (btn) btn.disabled = false; });
+  }
+
+  document.getElementById("focusExtra").addEventListener("click", function () {
+    if (focusSub !== null) grantTime(focusSub, 5, this);
+  });
+
   document.getElementById("focusFlag").addEventListener("click", function () {
     if (focusSub === null) return;
     var btn = this;
@@ -324,8 +347,13 @@
           '<span class="badge wall-status"></span>' +
           '<span class="tag wall-viol"></span>' +
           '<span class="tag wall-time"></span>' +
+          '<button type="button" class="btn btn-sm wall-extra" title="Give this candidate 5 more minutes">+5 min</button>' +
         "</div>" +
       "</div>";
+
+    el.querySelector(".wall-extra").addEventListener("click", function () {
+      grantTime(row.submission_id, 5, this);
+    });
 
     // Plain click expands in place; the href stays real so ctrl/middle-click
     // still opens the full attempt page in a new tab.

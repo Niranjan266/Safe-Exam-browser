@@ -26,6 +26,28 @@
   <div class="kpi"><div class="kpi-ic">{{ icon('camera') }}</div><div><div class="kpi-num">{{ sub.snapshots|length }}</div><div class="kpi-label">Snapshots</div></div></div>
 </div>
 
+{% if not sub.completed %}
+<div class="card">
+  <div class="row-between" style="flex-wrap:wrap; gap:12px;">
+    <form method="POST" action="{{ url_for(ns ~ '.submission_extend', sub_id=sub.id) }}" style="display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap;">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="next" value="{{ request.path }}">
+      <div class="form-group" style="margin:0; max-width:140px;">
+        <label>Extra time (min)</label>
+        <input type="number" name="minutes" min="1" max="240" value="5">
+      </div>
+      <button class="btn btn-ghost" type="submit">{{ icon('clock') }} Add time</button>
+      {% if sub.extra_seconds %}<span class="tag" style="margin-bottom:11px;">{{ (sub.extra_seconds // 60) }} min granted so far</span>{% endif %}
+    </form>
+    {% if sub.locked or sub.disqualified %}
+    <form method="POST" action="{{ url_for(ns ~ '.submission_reenter', sub_id=sub.id) }}" onsubmit="return confirm('Let this candidate back in with their saved answers?');">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="next" value="{{ request.path }}">
+      <button class="btn btn-success" type="submit">{{ icon('unlock') }} Allow re-entry</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
 {% if current_user.is_admin %}
 <div class="card">
   <div class="row-between">

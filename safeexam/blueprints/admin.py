@@ -31,9 +31,11 @@ from ..forms import (
 from ..decorators import admin_required
 from ..audit import log_action
 from .. import enrolment
+from ..csvutil import safe_row
 from .. import proctoring
 from .. import framestore
 from .. import reports
+from .. import services
 from .. import settings as settings_store
 from ..timeutil import utcnow
 
@@ -746,6 +748,39 @@ def submission_disqualify(sub_id):
     return _redirect_back()
 
 
+@admin_bp.route("/submissions/<int:sub_id>/extend", methods=["POST"])
+@admin_required
+def submission_extend(sub_id):
+    sub = db.session.get(Submission, sub_id) or abort(404)
+    if sub.completed:
+        flash("This attempt is already finished.", "warning")
+        return _redirect_back()
+    minutes = services.grant_extra_time(sub, request.form.get("minutes", type=int) or 5)
+    log_action("submission.extra_time", target=sub.id, detail=f"+{minutes} min")
+    flash(f"Added {minutes} minute(s).", "success")
+    return _redirect_back()
+
+
+@admin_bp.route("/submissions/<int:sub_id>/reenter", methods=["POST"])
+@admin_required
+def submission_reenter(sub_id):
+    sub = db.session.get(Submission, sub_id) or abort(404)
+    if services.reenter_submission(sub):
+        log_action("submission.reenter", target=sub.id, detail="re-entry allowed; answers kept")
+        flash("Re-entry allowed. The candidate resumes with their saved answers.", "success")
+    else:
+        flash("Only a locked or disqualified, unfinished attempt can be re-entered.", "warning")
+    return _redirect_back()
+
+
+@admin_bp.route("/exams/<int:exam_id>/review")
+@admin_required
+def exam_review(exam_id):
+    exam = db.session.get(Exam, exam_id) or abort(404)
+    return render_template("shared/exam_review.html", exam=exam,
+                           rows=services.review_summary(exam))
+
+
 @admin_bp.route("/submissions/<int:sub_id>/score", methods=["POST"])
 @admin_required
 def submission_score(sub_id):
@@ -857,9 +892,9 @@ def report_csv():
     exam_id = request.args.get("exam_id", type=int)
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow(["Submission", "Student", "Exam", "Score", "Total", "Percent", "Status", "Violations", "Started", "Completed"])
+    writer.writerow(safe_row(["Submission", "Student", "Exam", "Score", "Total", "Percent", "Status", "Violations", "Started", "Completed"]))
     for sub, username, exam_title in _submission_rows(exam_id):
-        writer.writerow([
+        writer.writerow(safe_row([
             sub.id, username, exam_title,
             sub.score if sub.score is not None else "",
             sub.total if sub.total is not None else "",
@@ -867,7 +902,7 @@ def report_csv():
             sub.status_label(), sub.violation_count,
             sub.started_at.strftime("%Y-%m-%d %H:%M") if sub.started_at else "",
             sub.completed_at.strftime("%Y-%m-%d %H:%M") if sub.completed_at else "",
-        ])
+        ]))
     fname = f"safeexam_exam{exam_id}.csv" if exam_id else "safeexam_report.csv"
     return Response(output.getvalue(), mimetype="text/csv",
                     headers={"Content-Disposition": f"attachment; filename={fname}"})
@@ -919,10 +954,10 @@ def violations_csv():
 
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow(["Violation", "Timestamp (UTC)", "Student", "Exam",
-                     "Submission", "Type", "Severity", "Details"])
+    writer.writerow(safe_row(["Violation", "Timestamp (UTC)", "Student", "Exam",
+                     "Submission", "Type", "Severity", "Details"]))
     for v, username, exam_title in rows:
-        writer.writerow([
+        writer.writerow(safe_row([
             v.id,
             v.timestamp.strftime("%Y-%m-%d %H:%M:%S") if v.timestamp else "",
             username, exam_title,
@@ -932,7 +967,7 @@ def violations_csv():
             # proctoring.total_severity() adds up when deciding to terminate.
             proctoring.severity_for(v.violation_type),
             v.details or "",
-        ])
+        ]))
 
     fname = f"safeexam_violations_exam{exam_id}.csv" if exam_id else "safeexam_violations.csv"
     return Response(output.getvalue(), mimetype="text/csv",

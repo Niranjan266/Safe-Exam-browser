@@ -149,7 +149,8 @@ def live_frame(exam_id):
     """Receive the latest live screen / webcam frame for an attempt (overwrite)."""
     sub = _active_or_none(exam_id)
     if sub is None or not sub.is_active:
-        return jsonify({"ok": False}), 200
+        # Locked, disqualified or submitted: nothing more may be streamed.
+        return jsonify({"ok": False, "ended": True}), 409
     kind = request.form.get("kind", "screen")
     if kind not in ("screen", "cam"):
         kind = "screen"
@@ -266,6 +267,28 @@ def live_wall_feed():
     return jsonify(rows)
 
 
+@api_bp.route("/submission/<int:sub_id>/extra-time", methods=["POST"])
+@login_required
+def extra_time(sub_id):
+    """Grant one candidate N more minutes (admin; used by the live wall)."""
+    _admin_only()
+    sub = db.session.get(Submission, sub_id)
+    if sub is None:
+        abort(404)
+    if sub.completed:
+        return jsonify({"ok": False, "reason": "attempt already finished"}), 200
+    data = request.get_json(silent=True) or {}
+    try:
+        minutes = int(data.get("minutes"))
+    except (TypeError, ValueError):
+        return jsonify({"ok": False, "reason": "minutes must be a number"}), 400
+    from ..services import grant_extra_time
+
+    minutes = grant_extra_time(sub, minutes)
+    log_action("submission.extra_time", target=sub.id, detail=f"+{minutes} min")
+    return jsonify({"ok": True, "minutes": minutes, "remaining": sub.seconds_remaining()})
+
+
 @api_bp.route("/submission/<int:sub_id>/flag", methods=["POST"])
 @login_required
 def flag_moment(sub_id):
@@ -336,16 +359,20 @@ def replay_feed(sub_id):
         for s in sorted(sub.snapshots, key=lambda s: s.captured_at or datetime.min)
     ]
 
-    violations = [
-        {
+    violations = []
+    running = 0
+    for v in sorted(sub.violations, key=lambda v: v.timestamp or datetime.min):
+        weight = proctoring.severity_for(v.violation_type)
+        running += weight
+        violations.append({
             "t": offset(v.timestamp),
             "at": v.timestamp.isoformat() + "Z" if v.timestamp else None,
             "type": v.violation_type,
-            "severity": proctoring.severity_for(v.violation_type),
+            "severity": weight,
+            # Cumulative weighted severity after this violation (risk timeline).
+            "cum": running,
             "details": v.details or "",
-        }
-        for v in sorted(sub.violations, key=lambda v: v.timestamp or datetime.min)
-    ]
+        })
 
     student = db.session.get(User, sub.student_id)
     exam = db.session.get(Exam, sub.exam_id)
