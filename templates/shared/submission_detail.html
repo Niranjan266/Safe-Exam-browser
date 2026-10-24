@@ -20,7 +20,7 @@
 </div>
 
 <div class="grid cols-4">
-  <div class="kpi"><div class="kpi-ic">{{ icon('chart') }}</div><div><div class="kpi-num">{% if sub.score is not none %}{{ sub.score }}/{{ sub.total }}{% else %}—{% endif %}</div><div class="kpi-label">Score · {{ percent }}%</div></div></div>
+  <div class="kpi"><div class="kpi-ic">{{ icon('chart') }}</div><div><div class="kpi-num">{% if sub.score is not none %}{{ sub.score|marks }}/{{ sub.total|marks }}{% else %}—{% endif %}</div><div class="kpi-label">Score · {{ percent }}%</div></div></div>
   <div class="kpi {{ 'success' if percent >= pass_mark and sub.completed else 'danger' }}"><div class="kpi-ic">{{ icon('award') }}</div><div><div class="kpi-num" style="font-size:18px;">{{ 'Pass' if percent >= pass_mark and sub.completed else 'Fail' if sub.completed else '—' }}</div><div class="kpi-label">Pass mark {{ pass_mark }}%</div></div></div>
   <div class="kpi danger"><div class="kpi-ic">{{ icon('alert') }}</div><div><div class="kpi-num">{{ sub.violation_count }}</div><div class="kpi-label">Violations</div></div></div>
   <div class="kpi"><div class="kpi-ic">{{ icon('camera') }}</div><div><div class="kpi-num">{{ sub.snapshots|length }}</div><div class="kpi-label">Snapshots</div></div></div>
@@ -49,7 +49,7 @@
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="next" value="{{ request.path }}">
     <div class="form-group" style="margin:0; max-width:160px;">
       <label>Override score</label>
-      <input type="number" name="score" min="0" max="{{ sub.total or sub.exam.question_count }}" value="{{ sub.score if sub.score is not none else 0 }}">
+      <input type="number" name="score" min="0" step="any" max="{{ sub.total or sub.exam.question_count }}" value="{{ (sub.score if sub.score is not none else 0)|marks }}">
     </div>
     <span class="tag" style="margin-bottom:11px;">out of {{ sub.total or sub.exam.question_count }}</span>
     <button class="btn btn-ghost" type="submit" style="margin-bottom:0;">{{ icon('check') }} Update score</button>
@@ -104,9 +104,10 @@
     <p style="font-weight:600;">{{ loop.index }}. {{ q.text }}</p>
     {% set chosen = saved.get(q.id) %}
     <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
-      {% for value, label in q.options() %}
-        {% set is_correct = (value == q.correct_answer) %}
-        {% set is_chosen = (value == chosen) %}
+      {% if q.kind == 'numeric' %}<span class="badge badge-muted">Answer: {{ chosen or 'none' }} · expected {{ q.correct_display() }}</span>{% endif %}
+      {% for value, label in (q.options() if q.kind != 'numeric' else []) %}
+        {% set is_correct = value in q.correct_answer %}
+        {% set is_chosen = value in (chosen or '') %}
         <span class="badge {{ 'badge-success' if is_correct else 'badge-danger' if is_chosen else 'badge-muted' }}">
           {{ value }}. {{ label }}{% if is_chosen %} · chosen{% endif %}{% if is_correct %} · correct{% endif %}
         </span>

@@ -74,7 +74,7 @@
           <td>{{ s.id }}</td>
           <td>{{ names.get(s.student_id, 'User #' ~ s.student_id) }}</td>
           <td>{{ s.exam.title }}</td>
-          <td>{% if s.score is not none %}{{ s.score }}/{{ s.total }}{% else %}<span class="muted">—</span>{% endif %}</td>
+          <td>{% if s.score is not none %}{{ s.score|marks }}/{{ s.total|marks }}{% else %}<span class="muted">—</span>{% endif %}</td>
           <td class="status-{{ s.status_label().split(' ')[0] }}">{{ s.status_label() }}</td>
           <td class="muted">{{ s.started_at.strftime('%Y-%m-%d %H:%M') if s.started_at else '—' }}</td>
           <td class="right"><a class="btn btn-sm btn-ghost" href="{{ url_for('teacher.submission_detail', sub_id=s.id) }}">{{ icon('eye') }} View</a></td>

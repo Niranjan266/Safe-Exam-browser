@@ -8,6 +8,8 @@ from wtforms import (
     TextAreaField,
     BooleanField,
     DateTimeLocalField,
+    FloatField,
+    SelectMultipleField,
 )
 from wtforms.validators import (
     DataRequired, InputRequired, Length, NumberRange, EqualTo, Optional, ValidationError,
@@ -61,6 +63,18 @@ class ExamForm(FlaskForm):
     )
     shuffle_questions = BooleanField("Shuffle question order")
     require_webcam = BooleanField("Require webcam", default=True)
+    negative_marking = FloatField(
+        "Negative marking (fraction of a question's marks lost per wrong answer)",
+        validators=[Optional(), NumberRange(min=0, max=1)],
+        default=0,
+    )
+    pool_size = IntegerField(
+        "Questions per student (0 = all)",
+        validators=[Optional(), NumberRange(min=0, max=1000)],
+        default=0,
+    )
+    shuffle_options = BooleanField("Shuffle answer options per student")
+    results_released = BooleanField("Release results (students see answers and marks)")
     is_published = BooleanField("Published (visible to students)")
     available_from = DateTimeLocalField(
         "Available from", format="%Y-%m-%dT%H:%M", validators=[Optional()]
@@ -68,6 +82,12 @@ class ExamForm(FlaskForm):
     available_until = DateTimeLocalField(
         "Available until", format="%Y-%m-%dT%H:%M", validators=[Optional()]
     )
+
+    def populate_obj(self, obj):
+        super().populate_obj(obj)
+        # Blank numeric inputs must not null out NOT NULL columns.
+        obj.negative_marking = obj.negative_marking or 0
+        obj.pool_size = obj.pool_size or 0
 
     def validate_available_until(self, field):
         if field.data and self.available_from.data and field.data <= self.available_from.data:
@@ -138,14 +158,86 @@ class ImportQuestionsForm(FlaskForm):
     )
 
 
+QUESTION_TYPES = [
+    ("single", "Single choice"),
+    ("multiple", "Multiple correct"),
+    ("truefalse", "True / False"),
+    ("numeric", "Numeric answer"),
+]
+_LETTERS = [("A", "A"), ("B", "B"), ("C", "C"), ("D", "D")]
+
+
 class QuestionForm(FlaskForm):
+    qtype = SelectField("Type", choices=QUESTION_TYPES, default="single")
     text = TextAreaField("Question", validators=[DataRequired(), Length(max=2000)])
-    option_a = StringField("Option A", validators=[DataRequired(), Length(max=300)])
-    option_b = StringField("Option B", validators=[DataRequired(), Length(max=300)])
-    option_c = StringField("Option C", validators=[DataRequired(), Length(max=300)])
-    option_d = StringField("Option D", validators=[DataRequired(), Length(max=300)])
+    image_url = StringField("Image URL (optional)", validators=[Optional(), Length(max=500)])
+    marks = FloatField("Marks", validators=[Optional(), NumberRange(min=0.25, max=100)], default=1)
+    option_a = StringField("Option A", validators=[Optional(), Length(max=300)])
+    option_b = StringField("Option B", validators=[Optional(), Length(max=300)])
+    option_c = StringField("Option C", validators=[Optional(), Length(max=300)])
+    option_d = StringField("Option D", validators=[Optional(), Length(max=300)])
     correct_answer = SelectField(
         "Correct answer",
         choices=[("A", "Option A"), ("B", "Option B"), ("C", "Option C"), ("D", "Option D")],
-        validators=[DataRequired()],
+        default="A",
     )
+    correct_multi = SelectMultipleField("Correct answers (tick all)", choices=_LETTERS)
+    numeric_answer = FloatField("Correct number", validators=[Optional()])
+    tolerance = FloatField("Tolerance (±)", validators=[Optional(), NumberRange(min=0)])
+
+    def validate_image_url(self, field):
+        url = (field.data or "").strip()
+        if url and not url.lower().startswith(("http://", "https://", "/")):
+            raise ValidationError("Use an http(s) link or a /static path.")
+
+    def validate(self, extra_validators=None):
+        ok = super().validate(extra_validators)
+        kind = self.qtype.data
+        if kind == "truefalse":
+            if self.correct_answer.data not in ("A", "B"):
+                self.correct_answer.errors = list(self.correct_answer.errors) + ["Pick True or False."]
+                ok = False
+        elif kind == "numeric":
+            if self.numeric_answer.data is None:
+                self.numeric_answer.errors = list(self.numeric_answer.errors) + ["Enter the correct number."]
+                ok = False
+        else:
+            for name in ("option_a", "option_b", "option_c", "option_d"):
+                field = getattr(self, name)
+                if not (field.data or "").strip():
+                    field.errors = list(field.errors) + ["Required."]
+                    ok = False
+            if kind == "multiple" and not self.correct_multi.data:
+                self.correct_multi.errors = list(self.correct_multi.errors) + ["Tick at least one."]
+                ok = False
+        return ok
+
+    def apply_to(self, q):
+        """Copy the form onto a Question, normalising by type."""
+        kind = self.qtype.data
+        q.qtype = kind
+        q.text = self.text.data
+        q.image_url = (self.image_url.data or "").strip() or None
+        q.marks = self.marks.data if self.marks.data is not None else 1.0
+        q.numeric_answer = q.tolerance = None
+        if kind == "truefalse":
+            q.option_a, q.option_b, q.option_c, q.option_d = "True", "False", "", ""
+            q.correct_answer = self.correct_answer.data
+        elif kind == "numeric":
+            q.option_a = q.option_b = q.option_c = q.option_d = ""
+            q.correct_answer = ""
+            q.numeric_answer = self.numeric_answer.data
+            q.tolerance = self.tolerance.data or None
+        else:
+            q.option_a, q.option_b = self.option_a.data, self.option_b.data
+            q.option_c, q.option_d = self.option_c.data, self.option_d.data
+            q.correct_answer = (
+                "".join(sorted(self.correct_multi.data)) if kind == "multiple"
+                else self.correct_answer.data
+            )
+
+    def load_from(self, q):
+        """Prefill type-specific fields when editing (call on GET only)."""
+        self.qtype.data = q.kind
+        if q.kind == "multiple":
+            self.correct_multi.data = list(q.correct_answer)

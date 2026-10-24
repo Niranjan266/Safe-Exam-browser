@@ -23,6 +23,7 @@ import io
 from datetime import datetime
 
 from . import framestore, proctoring
+from .services import fmt_marks
 from .timeutil import utcnow
 
 # Layout constants for the snapshot contact sheet.
@@ -188,7 +189,7 @@ def build_evidence_pdf(submission, student, exam, pass_mark=None):
 
     if submission.total:
         pct = round((submission.score or 0) / submission.total * 100)
-        score_txt = f"{submission.score if submission.score is not None else 0} / {submission.total}  ({pct}%)"
+        score_txt = f"{fmt_marks(submission.score)} / {fmt_marks(submission.total)}  ({pct}%)"
         if submission.disqualified:
             # Never print "PASS" on a disqualified attempt. The raw marks are
             # still shown because a review may reinstate them, but presenting a

@@ -1,0 +1,43 @@
+{# Type-aware question fields shared by the add and edit forms. #}
+<div class="q-fields">
+  <div class="two-col">
+    <div class="form-group">{{ form.qtype.label }} {{ form.qtype(class_="qtype-select") }}</div>
+    <div class="form-group">{{ form.marks.label }} {{ form.marks(step="any", min="0.25") }}
+      {% for e in form.marks.errors %}<div class="field-error">{{ e }}</div>{% endfor %}</div>
+  </div>
+  <div class="form-group">{{ form.text.label }} {{ form.text(rows=2, placeholder="Enter the question") }}
+    {% for e in form.text.errors %}<div class="field-error">{{ e }}</div>{% endfor %}</div>
+  <div class="form-group">{{ form.image_url.label }} {{ form.image_url(placeholder="https://...") }}
+    {% for e in form.image_url.errors %}<div class="field-error">{{ e }}</div>{% endfor %}</div>
+  <div data-qt="single multiple">
+    <div class="two-col">
+      {% for f in (form.option_a, form.option_b, form.option_c, form.option_d) %}
+      <div class="form-group">{{ f.label }} {{ f() }}
+        {% for e in f.errors %}<div class="field-error">{{ e }}</div>{% endfor %}</div>
+      {% endfor %}
+    </div>
+  </div>
+  <div class="form-group" data-qt="single truefalse" style="max-width:240px;">{{ form.correct_answer.label }} {{ form.correct_answer() }}
+    <div class="helper-text" data-qt="truefalse">A = True, B = False.</div></div>
+  <div class="form-group" data-qt="multiple">{{ form.correct_multi.label }}
+    {% for sub in form.correct_multi %}<label class="checkbox-row" style="display:inline-flex;margin-right:12px;">{{ sub() }} {{ sub.label.text }}</label>{% endfor %}
+    {% for e in form.correct_multi.errors %}<div class="field-error">{{ e }}</div>{% endfor %}</div>
+  <div class="two-col" data-qt="numeric">
+    <div class="form-group">{{ form.numeric_answer.label }} {{ form.numeric_answer(step="any") }}
+      {% for e in form.numeric_answer.errors %}<div class="field-error">{{ e }}</div>{% endfor %}</div>
+    <div class="form-group">{{ form.tolerance.label }} {{ form.tolerance(step="any", min="0") }}</div>
+  </div>
+</div>
+<script>
+  (function () {
+    var root = document.currentScript.previousElementSibling;
+    var sel = root.querySelector(".qtype-select");
+    function sync() {
+      root.querySelectorAll("[data-qt]").forEach(function (el) {
+        el.style.display = el.getAttribute("data-qt").split(" ").indexOf(sel.value) >= 0 ? "" : "none";
+      });
+    }
+    sel.addEventListener("change", sync);
+    sync();
+  })();
+</script>

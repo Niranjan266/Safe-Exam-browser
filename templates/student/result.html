@@ -11,7 +11,7 @@
     <p class="muted" style="margin-top:6px;">{{ exam.title }}</p>
 
     <div class="ring" style="--p: {{ percentage }};"><div class="inner">{{ percentage }}%</div></div>
-    <div class="score-number">{{ score }} / {{ total }}</div>
+    <div class="score-number">{{ score|marks }} / {{ total|marks }}</div>
 
     {% if submission.disqualified %}
       <div class="badge badge-danger" style="margin-top:6px;">Disqualified — {{ submission.termination_reason or 'integrity violations' }}</div>
@@ -25,5 +25,19 @@
     <p class="tag">Violations recorded: {{ submission.violation_count }}</p>
     <a class="btn btn-block" style="margin-top:18px;" href="{{ url_for('student.dashboard') }}">{{ icon('chevron') }} Back to my exams</a>
   </div>
+  {% if review %}
+  <div class="result-card" style="margin-top:18px;max-width:760px;text-align:left;">
+    <h3>Your answers</h3>
+    {% for r in review %}
+    <div class="question-card">
+      <p class="q-text"><span class="q-index">{{ loop.index }}.</span>{{ r.q.text }}</p>
+      <p>Your answer: <strong>{{ r.q.display_answer(r.selected) }}</strong>
+        <span class="badge {{ 'badge-success' if r.correct else 'badge-danger' }}">{{ 'Correct' if r.correct else ('Not answered' if not r.selected else 'Incorrect') }}</span></p>
+      {% if not r.correct %}<p>Correct answer: <strong>{{ r.q.correct_display() }}</strong></p>{% endif %}
+      <p class="tag">Marks: {{ r.marks|marks }} / {{ r.q.weight|marks }}</p>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
 </div>
 {% endblock %}

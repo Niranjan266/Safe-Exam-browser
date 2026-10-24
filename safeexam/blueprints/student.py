@@ -1,5 +1,4 @@
 """Student-facing views: dashboard and the locked-down exam flow."""
-import random
 from flask import Blueprint, render_template, redirect, url_for, flash, request, abort
 from flask_login import current_user
 
@@ -12,6 +11,10 @@ from ..services import (
     get_completed_submission,
     upsert_answer,
     grade_submission,
+    submission_questions,
+    option_order,
+    is_correct,
+    marks_for,
 )
 from ..timeutil import utcnow
 
@@ -69,10 +72,12 @@ def start_exam(exam_id):
         flash("Your time for this exam has ended.", "info")
         return redirect(url_for("student.result", exam_id=exam_id))
 
-    questions = list(exam.questions)
-    if exam.shuffle_questions:
-        random.seed(submission.id)  # stable shuffle across refreshes for this attempt
-        random.shuffle(questions)
+    # Pool draw + shuffles are seeded by the submission id: stable across refreshes.
+    questions = submission_questions(submission)
+    option_keys = {
+        q.id: [(k, dict(q.options())[k]) for k in option_order(submission, q)]
+        for q in questions
+    }
 
     # Resume any previously saved answers.
     saved = {a.question_id: a.selected for a in submission.answers}
@@ -81,6 +86,7 @@ def start_exam(exam_id):
         "student/exam.html",
         exam=exam,
         questions=questions,
+        option_keys=option_keys,
         submission=submission,
         saved=saved,
         seconds_remaining=submission.seconds_remaining(),
@@ -98,10 +104,13 @@ def submit_exam(exam_id):
         return redirect(url_for("student.result", exam_id=exam_id))
 
     # Capture answers from the posted form (belt-and-braces over JS autosave).
-    for question in exam.questions:
-        selected = request.form.get(str(question.id))
-        if selected in {"A", "B", "C", "D"}:
-            upsert_answer(submission, question.id, selected)
+    for question in submission_questions(submission):
+        key = str(question.id)
+        if question.kind == "multiple":
+            # An untouched group posts nothing, so this also clears unticked boxes.
+            upsert_answer(submission, question.id, request.form.getlist(key))
+        elif request.form.get(key):
+            upsert_answer(submission, question.id, request.form.get(key))
     db.session.commit()
 
     reason = None
@@ -125,6 +134,19 @@ def result(exam_id):
 
     total = submission.total or exam.question_count or 1
     percentage = round((submission.score or 0) / total * 100) if total else 0
+    review = None
+    if exam.results_released:
+        saved = {a.question_id: a.selected for a in submission.answers}
+        negative = exam.negative_marking or 0.0
+        review = [
+            {
+                "q": q,
+                "selected": saved.get(q.id),
+                "correct": is_correct(q, saved.get(q.id)),
+                "marks": round(marks_for(q, saved.get(q.id), negative), 2),
+            }
+            for q in submission_questions(submission)
+        ]
     return render_template(
         "student/result.html",
         exam=exam,
@@ -132,6 +154,7 @@ def result(exam_id):
         score=submission.score or 0,
         total=total,
         percentage=percentage,
+        review=review,
     )
 
 

@@ -22,13 +22,15 @@
   {% if exam.questions %}
   <div class="table-wrap">
     <table>
-      <thead><tr><th>#</th><th>Question</th><th>Correct</th><th class="right">Actions</th></tr></thead>
+      <thead><tr><th>#</th><th>Question</th><th>Type</th><th>Marks</th><th>Correct</th><th class="right">Actions</th></tr></thead>
       <tbody>
         {% for q in exam.questions %}
         <tr>
           <td>{{ loop.index }}</td>
           <td>{{ q.text|truncate(90) }}</td>
-          <td><span class="badge badge-success">{{ q.correct_answer }}</span></td>
+          <td>{{ q.kind }}</td>
+          <td>{{ q.weight|marks }}</td>
+          <td><span class="badge badge-success">{{ q.correct_answer or q.correct_display() }}</span></td>
           <td class="right">
             <div class="btn-row" style="justify-content:flex-end;">
               <a class="btn btn-sm btn-ghost" href="{{ url_for(ns ~ '.question_edit', q_id=q.id) }}">{{ icon('edit') }}</a>
@@ -53,15 +55,7 @@
     <div class="section-title">{{ icon('plus') }} Add question</div>
     <form method="POST" novalidate>
       {{ form.hidden_tag() }}
-      <div class="form-group">{{ form.text.label }} {{ form.text(rows=2, placeholder="Enter the question") }}
-        {% for e in form.text.errors %}<div class="field-error">{{ e }}</div>{% endfor %}</div>
-      <div class="two-col">
-        <div class="form-group">{{ form.option_a.label }} {{ form.option_a() }}</div>
-        <div class="form-group">{{ form.option_b.label }} {{ form.option_b() }}</div>
-        <div class="form-group">{{ form.option_c.label }} {{ form.option_c() }}</div>
-        <div class="form-group">{{ form.option_d.label }} {{ form.option_d() }}</div>
-      </div>
-      <div class="form-group" style="max-width:240px;">{{ form.correct_answer.label }} {{ form.correct_answer() }}</div>
+      {% include "shared/_question_fields.html" %}
       <button type="submit">{{ icon('plus') }} Add question</button>
     </form>
   </div>

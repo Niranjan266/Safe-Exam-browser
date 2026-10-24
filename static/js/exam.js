@@ -132,19 +132,28 @@
 
   /* ---------------- Answer autosave + selection ---------------- */
   function wireAnswers() {
-    form.querySelectorAll('input[type="radio"]').forEach((radio) => {
-      radio.addEventListener("change", () => {
-        // highlight
-        const name = radio.name;
-        form.querySelectorAll('input[name="' + name + '"]').forEach((r) =>
-          r.closest(".option-label").classList.toggle("selected", r.checked)
-        );
-        // autosave
-        SEBMonitoring.postJSON(SEB.urls.answer, {
-          question_id: parseInt(name, 10),
-          selected: radio.value,
-        });
+    function save(questionId, selected) {
+      SEBMonitoring.postJSON(SEB.urls.answer, {
+        question_id: parseInt(questionId, 10),
+        selected: selected,
       });
+    }
+    form.querySelectorAll('input[type="radio"], input[type="checkbox"]').forEach((input) => {
+      input.addEventListener("change", () => {
+        const name = input.name;
+        const group = form.querySelectorAll('input[name="' + name + '"]');
+        group.forEach((r) => r.closest(".option-label").classList.toggle("selected", r.checked));
+        if (input.type === "checkbox") {
+          // Multiple-correct: send every ticked letter, e.g. "AC" ("" clears).
+          save(name, Array.prototype.filter.call(group, (c) => c.checked).map((c) => c.value).join(""));
+        } else {
+          save(name, input.value);
+        }
+      });
+    });
+    // Numeric answers: save when the field settles.
+    form.querySelectorAll("input.num-answer").forEach((box) => {
+      box.addEventListener("change", () => save(box.name, box.value));
     });
   }
 
