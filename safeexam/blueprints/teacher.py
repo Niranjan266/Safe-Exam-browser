@@ -30,6 +30,8 @@ from ..models import (
 from ..forms import ExamForm, QuestionForm, ImportQuestionsForm, ClassForm, UserForm
 from ..decorators import teacher_required
 from ..audit import log_action
+from ..csvutil import safe_row
+from .. import services
 from .. import settings as settings_store
 
 teacher_bp = Blueprint("teacher", __name__, url_prefix="/teacher")
@@ -593,6 +595,41 @@ def submission_detail(sub_id):
     )
 
 
+@teacher_bp.route("/submissions/<int:sub_id>/extend", methods=["POST"])
+@teacher_required
+def submission_extend(sub_id):
+    sub = db.session.get(Submission, sub_id) or abort(404)
+    _own_exam(sub.exam_id)
+    if sub.completed:
+        flash("This attempt is already finished.", "warning")
+    else:
+        minutes = services.grant_extra_time(sub, request.form.get("minutes", type=int) or 5)
+        log_action("submission.extra_time", target=sub.id, detail=f"+{minutes} min")
+        flash(f"Added {minutes} minute(s).", "success")
+    return redirect(url_for("teacher.submission_detail", sub_id=sub.id))
+
+
+@teacher_bp.route("/submissions/<int:sub_id>/reenter", methods=["POST"])
+@teacher_required
+def submission_reenter(sub_id):
+    sub = db.session.get(Submission, sub_id) or abort(404)
+    _own_exam(sub.exam_id)
+    if services.reenter_submission(sub):
+        log_action("submission.reenter", target=sub.id, detail="re-entry allowed; answers kept")
+        flash("Re-entry allowed. The candidate resumes with their saved answers.", "success")
+    else:
+        flash("Only a locked or disqualified, unfinished attempt can be re-entered.", "warning")
+    return redirect(url_for("teacher.submission_detail", sub_id=sub.id))
+
+
+@teacher_bp.route("/exams/<int:exam_id>/review")
+@teacher_required
+def exam_review(exam_id):
+    exam = _own_exam(exam_id)
+    return render_template("shared/exam_review.html", exam=exam,
+                           rows=services.review_summary(exam))
+
+
 @teacher_bp.route("/report.csv")
 @teacher_required
 def report_csv():
@@ -609,12 +646,12 @@ def report_csv():
     )
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow([
+    writer.writerow(safe_row([
         "Submission", "Student", "Exam", "Score", "Total", "Percent",
         "Status", "Violations", "Started", "Completed",
-    ])
+    ]))
     for sub, username, exam_title in query.order_by(Submission.started_at.desc()).all():
-        writer.writerow([
+        writer.writerow(safe_row([
             sub.id, username, exam_title,
             sub.score if sub.score is not None else "",
             sub.total if sub.total is not None else "",
@@ -622,7 +659,7 @@ def report_csv():
             sub.status_label(), sub.violation_count,
             sub.started_at.strftime("%Y-%m-%d %H:%M") if sub.started_at else "",
             sub.completed_at.strftime("%Y-%m-%d %H:%M") if sub.completed_at else "",
-        ])
+        ]))
     fname = f"exam{exam_id}.csv" if exam_id else "my_exams.csv"
     return Response(
         output.getvalue(), mimetype="text/csv",

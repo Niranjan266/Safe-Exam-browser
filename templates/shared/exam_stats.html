@@ -4,6 +4,7 @@
 {% block page_title %}Exam statistics{% endblock %}
 {% block head %}<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>{% endblock %}
 {% block topbar_actions %}
+<a class="btn" href="{{ url_for(ns ~ '.exam_review', exam_id=exam.id) }}">{{ icon('alert') }} Needs review</a>
 <a class="btn btn-ghost" href="{{ url_for(ns ~ '.report_csv', exam_id=exam.id) }}">{{ icon('download') }} Results CSV</a>
 <a class="btn btn-ghost" href="{{ url_for(ns ~ '.exams') }}">{{ icon('chevron') }} Back</a>
 {% endblock %}

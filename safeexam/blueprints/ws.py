@@ -37,6 +37,25 @@ DB_PERSIST_INTERVAL = 2.0
 # Guard against a client flooding us. 8 MB is far above a sane JPEG frame.
 MAX_FRAME_BYTES = 8 * 1024 * 1024
 
+# How often a live stream re-checks that its attempt is still in progress.
+# receive() is given this as a timeout so an idle socket is re-checked too.
+RECHECK_INTERVAL = 3.0
+
+
+def _end_reason(submission_id):
+    """Why the attempt can no longer stream, or None while it is active."""
+    db.session.expire_all()          # see a lock/submit made by another request
+    sub = db.session.get(Submission, submission_id)
+    if sub is None:
+        return "attempt no longer exists"
+    if sub.completed:
+        return "attempt completed"
+    if sub.disqualified:
+        return "attempt disqualified"
+    if sub.locked:
+        return "attempt locked"
+    return None
+
 
 def ws_available() -> bool:
     """
@@ -98,9 +117,20 @@ def register(sock):
         require_webcam = bool(exam.require_webcam)
         last_persist = {"screen": 0.0, "cam": 0.0}
 
+        next_check = time.time() + RECHECK_INTERVAL
         while True:
-            data = ws.receive()
+            try:
+                data = ws.receive(timeout=RECHECK_INTERVAL)
+            except Exception:
+                break
+            if time.time() >= next_check:
+                next_check = time.time() + RECHECK_INTERVAL
+                reason = _end_reason(submission_id)
+                if reason:
+                    return _refuse(ws, reason)
             if data is None:
+                if getattr(ws, "connected", True):
+                    continue        # just an idle timeout
                 break
 
             # Each message is  "<kind>|" followed by the raw JPEG bytes, which

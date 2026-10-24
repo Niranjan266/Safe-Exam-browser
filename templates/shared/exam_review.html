@@ -1,0 +1,54 @@
+{% extends "dash_base.html" %}
+{% from "partials/_macros.html" import icon %}
+{% block title %}Needs review — {{ exam.title }}{% endblock %}
+{% block page_title %}Needs review{% endblock %}
+{% block topbar_actions %}
+<a class="btn btn-ghost" href="{{ url_for(ns ~ '.exam_stats', exam_id=exam.id) }}">{{ icon('chevron') }} Back to statistics</a>
+{% endblock %}
+{% block dash %}
+<div class="card">
+  <div class="row-between" style="flex-wrap:wrap; gap:12px;">
+    <div class="meta-row">
+      <span>{{ icon('file') }} <strong>{{ exam.title }}</strong></span>
+      <span class="badge {{ 'badge-danger' if rows else 'badge-success' }}" id="reviewCount">{{ rows|length }} student{{ '' if rows|length == 1 else 's' }} need review</span>
+    </div>
+    <span class="tag">Sorted by weighted severity, then violation count.</span>
+  </div>
+</div>
+
+<div class="card">
+  {% if rows %}
+  <div class="table-wrap">
+  <table class="table">
+    <thead><tr><th>Candidate</th><th>Severity</th><th>Violations by type</th><th>Flags</th><th>Evidence</th></tr></thead>
+    <tbody>
+    {% for r in rows %}
+    <tr>
+      <td><strong>{{ r.student }}</strong><br><span class="tag">Attempt #{{ r.sub.id }} · {{ r.sub.status_label() }}</span></td>
+      <td>{{ r.severity }} / {{ r.limit }}</td>
+      <td>{% for t, n in r.counts %}<span class="tag">{{ t }} ×{{ n }}</span> {% else %}<span class="tag">none</span>{% endfor %}</td>
+      <td>
+        {% if r.high_risk %}<span class="badge badge-warning">High risk</span>{% endif %}
+        {% if r.sub.disqualified %}<span class="badge badge-danger">Disqualified</span>{% elif r.sub.locked %}<span class="badge badge-danger">Locked</span>{% endif %}
+        {% if r.flagged %}<span class="badge badge-danger">{{ r.flagged|length }} flagged</span>{% endif %}
+      </td>
+      <td>
+        <a href="{{ url_for(ns ~ '.submission_detail', sub_id=r.sub.id) }}">Details</a>
+        {% if current_user.is_admin %}
+        · <a href="{{ url_for('admin.submission_replay', sub_id=r.sub.id) }}">Replay</a>
+        · <a href="{{ url_for('admin.submission_report_pdf', sub_id=r.sub.id) }}">Evidence PDF</a>
+        {% for snap in r.flagged[:4] %}
+        · <a href="{{ url_for('admin.snapshot_image', snap_id=snap.id) }}" target="_blank">Frame {{ loop.index }}</a>
+        {% endfor %}
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <p class="empty">No attempt on this exam needs review.</p>
+  {% endif %}
+</div>
+{% endblock %}
