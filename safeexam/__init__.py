@@ -42,11 +42,9 @@ def create_app(config_name=None):
 
     # Creating tables costs a round trip per table. Against a remote database
     # (Turso) that is wasted work on every serverless cold start, so it can be
-    # turned off with SEB_INIT_DB=0 once the schema is in place. A long-running
-    # server (Render sets RENDER=true) pays it once per boot, and skipping it
-    # there leaves new tables/columns missing after an upgrade — every query
-    # touching them then fails ("no such column"), login included.
-    if _bool_env("SEB_INIT_DB", default=True) or _bool_env("RENDER"):
+    # turned off with SEB_INIT_DB=0 once the schema is in place (wsgi.py then
+    # syncs it in a separate process on long-running hosts).
+    if _bool_env("SEB_INIT_DB", default=True):
         with app.app_context():
             db.create_all()
             _auto_migrate()
