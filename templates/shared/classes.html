@@ -32,6 +32,7 @@
           <td><span class="badge {{ 'badge-success' if c.active else 'badge-warning' }}">{{ 'Active' if c.active else 'Archived' }}</span></td>
           <td class="right">
             <div class="btn-row" style="justify-content:flex-end;">
+              <a class="btn btn-sm btn-ghost" href="{{ url_for(ns ~ '.class_students', class_id=c.id) }}" title="Students">{{ icon('users') }}</a>
               <a class="btn btn-sm btn-ghost" href="{{ url_for(ns ~ '.class_edit', class_id=c.id) }}" title="Edit">{{ icon('edit') }}</a>
               <form class="inline-form" method="POST" action="{{ url_for(ns ~ '.class_toggle', class_id=c.id) }}">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

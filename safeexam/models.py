@@ -90,6 +90,14 @@ class User(UserMixin, db.Model):
         return f"<User {self.username} ({self.role})>"
 
 
+# Student <-> class membership. Rows vanish with either side.
+class_students = db.Table(
+    "class_students",
+    db.Column("class_id", db.Integer, db.ForeignKey("classes.id"), primary_key=True),
+    db.Column("user_id", db.Integer, db.ForeignKey("users.id"), primary_key=True),
+)
+
+
 class SchoolClass(db.Model):
     """
     A teaching class / course section that exams can be attached to.
@@ -113,6 +121,10 @@ class SchoolClass(db.Model):
     created_at = db.Column(db.DateTime, default=utcnow)
 
     exams = db.relationship("Exam", backref="school_class", lazy=True)
+    students = db.relationship(
+        "User", secondary=class_students, lazy="select",
+        backref=db.backref("enrolled_classes", lazy="select"),
+    )
 
     __table_args__ = (
         db.UniqueConstraint(

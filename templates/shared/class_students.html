@@ -1,0 +1,52 @@
+{% extends "dash_base.html" %}
+{% from "partials/_macros.html" import icon %}
+{% block title %}Enrolment — {{ APP_NAME }}{% endblock %}
+{% block page_title %}Enrolment: {{ cls.name }}{% endblock %}
+{% block topbar_actions %}
+<a class="btn btn-ghost" href="{{ url_for(ns ~ '.classes') }}">Back to classes</a>
+{% endblock %}
+{% block dash %}
+<div class="grid cols-2">
+  <div class="card">
+    <div class="section-title">{{ icon('users') }} Enrolled students ({{ roster|length }})</div>
+    {% if roster %}
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Name</th><th>Username</th><th class="right">Actions</th></tr></thead>
+        <tbody>
+          {% for u in roster %}
+          <tr>
+            <td><strong>{{ u.full_name or '—' }}</strong></td>
+            <td>{{ u.username }}</td>
+            <td class="right">
+              <form class="inline-form" method="POST" action="{{ url_for(ns ~ '.class_students_remove', class_id=cls.id, user_id=u.id) }}" onsubmit="return confirm('Remove this student from the class?');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="btn btn-sm btn-danger" title="Remove">{{ icon('trash') }}</button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="empty">No students enrolled yet.</p>
+    {% endif %}
+  </div>
+  <div class="card">
+    <div class="section-title">{{ icon('plus') }} Add students</div>
+    {% if candidates %}
+    <form method="POST" action="{{ url_for(ns ~ '.class_students_add', class_id=cls.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <select name="user_ids" multiple size="12" style="width:100%;">
+        {% for u in candidates %}<option value="{{ u.id }}">{{ u.full_name or u.username }} ({{ u.username }})</option>{% endfor %}
+      </select>
+      <p class="card-sub">Hold Ctrl / Cmd to select several.</p>
+      <button type="submit">{{ icon('plus') }} Enrol selected</button>
+    </form>
+    {% else %}
+    <p class="empty">Every active student is already in this class.</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

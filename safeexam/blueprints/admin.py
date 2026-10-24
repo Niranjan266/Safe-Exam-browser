@@ -30,6 +30,7 @@ from ..forms import (
 )
 from ..decorators import admin_required
 from ..audit import log_action
+from .. import enrolment
 from .. import proctoring
 from .. import framestore
 from .. import reports
@@ -387,6 +388,44 @@ def class_delete(class_id):
     return redirect(url_for("admin.classes"))
 
 
+def _enrolment_candidates(cls):
+    enrolled = {s.id for s in cls.students}
+    rows = User.query.filter_by(role=ROLE_STUDENT, active=True).order_by(User.username).all()
+    return [u for u in rows if u.id not in enrolled]
+
+
+@admin_bp.route("/classes/<int:class_id>/students")
+@admin_required
+def class_students(class_id):
+    cls = db.session.get(SchoolClass, class_id) or abort(404)
+    return render_template(
+        "shared/class_students.html", cls=cls,
+        roster=sorted(cls.students, key=lambda u: u.username.lower()),
+        candidates=_enrolment_candidates(cls),
+    )
+
+
+@admin_bp.route("/classes/<int:class_id>/students/add", methods=["POST"])
+@admin_required
+def class_students_add(class_id):
+    cls = db.session.get(SchoolClass, class_id) or abort(404)
+    ids = [int(v) for v in request.form.getlist("user_ids") if v.isdigit()]
+    added = enrolment.enrol(cls, ids)
+    log_action("class.enrol", target=cls.id, detail=f"{added} student(s)")
+    flash(f"Enrolled {added} student(s).", "success" if added else "info")
+    return redirect(url_for("admin.class_students", class_id=cls.id))
+
+
+@admin_bp.route("/classes/<int:class_id>/students/<int:user_id>/remove", methods=["POST"])
+@admin_required
+def class_students_remove(class_id, user_id):
+    cls = db.session.get(SchoolClass, class_id) or abort(404)
+    if enrolment.unenrol(cls, user_id):
+        log_action("class.unenrol", target=cls.id, detail=str(user_id))
+        flash("Student removed from the class.", "info")
+    return redirect(url_for("admin.class_students", class_id=cls.id))
+
+
 # ======================= Users =======================
 
 @admin_bp.route("/users")
@@ -408,7 +447,47 @@ def users():
         "students": User.query.filter_by(role=ROLE_STUDENT).count(),
         "inactive": User.query.filter_by(active=False).count(),
     }
-    return render_template("shared/users.html", people=people, counts=counts, q=q, role=role)
+    return render_template(
+        "shared/users.html", people=people, counts=counts, q=q, role=role,
+        import_classes=_all_class_choices()[1:],
+    )
+
+
+@admin_bp.route("/users/import", methods=["POST"])
+@admin_required
+def users_import():
+    raw = enrolment.read_upload(request.files.get("csv_file"))
+    if raw is None:
+        flash("Choose a UTF-8 CSV file under 512 KB.", "danger")
+        return redirect(url_for("admin.users"))
+    cls = None
+    class_id = request.form.get("class_id", type=int)
+    if class_id:
+        cls = db.session.get(SchoolClass, class_id) or abort(404)
+    summary, creds = enrolment.import_students(raw, current_user, cls)
+    log_action("user.import", detail=f"{summary['created']} created")
+    flash(
+        f"Imported {summary['created']} student(s); skipped {summary['duplicates']} "
+        f"duplicate(s) and {summary['invalid']} invalid row(s).",
+        "success" if summary["created"] else "warning",
+    )
+    if not creds:
+        return redirect(url_for("admin.users"))
+    token = enrolment.stash_credentials(current_user.id, creds, cls.label if cls else "")
+    return redirect(url_for("admin.users_credentials", token=token))
+
+
+@admin_bp.route("/users/credentials/<token>")
+@admin_required
+def users_credentials(token):
+    entry = enrolment.pop_credentials(token, current_user.id)
+    if entry is None:
+        flash("That credentials sheet has already been shown or has expired.", "warning")
+        return redirect(url_for("admin.users"))
+    return render_template(
+        "shared/credentials.html", rows=entry["rows"], class_label=entry["class"],
+        back=url_for("admin.users"),
+    )
 
 
 @admin_bp.route("/users/new", methods=["GET", "POST"])
