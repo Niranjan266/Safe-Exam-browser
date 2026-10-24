@@ -39,6 +39,7 @@
     terminated = true;
     SEBTimer.stop();
     if (window.SEBMonitoring) SEBMonitoring.stop();
+    if (window.SEBFaceCheck) SEBFaceCheck.stop();
     lockUI();
     window.location = SEB.urls.locked;
   }
@@ -48,6 +49,7 @@
     terminated = true;
     SEBTimer.stop();
     if (window.SEBMonitoring) SEBMonitoring.stop();
+    if (window.SEBFaceCheck) SEBFaceCheck.stop();
     // Submit first: lockUI() disables every form input, including the hidden
     // csrf_token, and disabled controls are left out of the POST (CSRF 400).
     form.submit();
@@ -284,6 +286,7 @@
       terminated = true;
       SEBTimer.stop();
       if (window.SEBMonitoring) SEBMonitoring.stop();
+    if (window.SEBFaceCheck) SEBFaceCheck.stop();
     });
   }
 
