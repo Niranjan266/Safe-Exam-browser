@@ -10,7 +10,7 @@
   <div class="row-between" style="flex-wrap:wrap; gap:12px;">
     <div class="meta-row">
       <span>{{ icon('file') }} <strong>{{ exam.title }}</strong></span>
-      <span class="badge {{ 'badge-danger' if rows else 'badge-success' }}" id="reviewCount">{{ rows|length }} student{{ '' if rows|length == 1 else 's' }} need review</span>
+      <span class="badge {{ 'badge-danger' if rows else 'badge-success' }}" id="reviewCount">{{ rows|length }} student{{ ' needs' if rows|length == 1 else 's need' }} review</span>
     </div>
     <span class="tag">Sorted by weighted severity, then violation count.</span>
   </div>

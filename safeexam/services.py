@@ -192,6 +192,7 @@ def reenter_submission(submission):
     submission.termination_reason = None
     submission.score = None
     submission.last_heartbeat = utcnow()
+    submission.reentered_at = utcnow()
     db.session.commit()
     return True
 

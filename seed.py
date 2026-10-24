@@ -86,6 +86,11 @@ def run_seed(app=None):
             db.session.commit()
             created.append("Class: BCom III Year — Financial Accounting (FA-301)")
 
+        demo_student = User.query.filter_by(username="student").first()
+        if demo_student and demo_student not in demo_class.students:
+            demo_class.students.append(demo_student)
+            db.session.commit()
+
         if not Exam.query.filter_by(title="Sample Aptitude Test").first():
             exam = Exam(
                 title="Sample Aptitude Test",

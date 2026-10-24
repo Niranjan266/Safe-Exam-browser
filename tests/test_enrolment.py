@@ -167,3 +167,22 @@ def test_import_rejects_missing_file(app, client):
     login(client, "teach")
     r = client.post("/teacher/students/import", data={}, content_type="multipart/form-data")
     assert r.status_code == 302 and r.headers["Location"].endswith("/teacher/students")
+
+
+def test_class_with_no_enrolments_stays_open_to_all(app, client):
+    t = make_user(app, "t9", ROLE_TEACHER)
+    make_user(app, "s9", ROLE_STUDENT)
+    other = make_user(app, "s10", ROLE_STUDENT)
+    cid = make_class(app, t, code="EMPTY")
+    eid = make_exam(app, t, class_id=cid, title="Legacy class exam")
+    login(client, "s9")
+    assert b"Legacy class exam" in client.get("/student").data
+
+    # Once anyone is enrolled the class becomes restricted.
+    with app.app_context():
+        cls = db.session.get(SchoolClass, cid)
+        cls.students.append(db.session.get(User, other))
+        db.session.commit()
+    assert b"Legacy class exam" not in client.get("/student").data
+    r = client.get(f"/exam/{eid}/start", follow_redirects=True)
+    assert b"not enrolled" in r.data

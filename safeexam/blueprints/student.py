@@ -22,8 +22,15 @@ student_bp = Blueprint("student", __name__)
 
 
 def _may_take(exam):
-    """Exams with no class are open to everyone; class exams need enrolment."""
+    """Exams with no class are open to everyone; class exams need enrolment.
+
+    A class nobody has been enrolled in yet keeps the pre-enrolment
+    behaviour (open to all students), so exams set up before enrolment
+    existed don't vanish on upgrade.
+    """
     if exam.class_id is None:
+        return True
+    if exam.school_class is not None and not exam.school_class.students:
         return True
     return any(c.id == exam.class_id for c in current_user.enrolled_classes)
 

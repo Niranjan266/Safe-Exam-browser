@@ -93,9 +93,17 @@ def record_violation(submission, violation_type, details=None):
     return v
 
 
-def total_severity(submission):
+def total_severity(submission, since=None):
     return sum(severity_for(v.violation_type, submission.exam, v.details)
-               for v in submission.violations)
+               for v in submission.violations
+               if since is None or (v.timestamp and v.timestamp >= since))
+
+
+def active_severity(submission):
+    """Severity that counts towards the auto-lock: a proctor-approved
+    re-entry starts the candidate on a fresh allowance. Reports still use
+    total_severity(), the full history."""
+    return total_severity(submission, since=submission.reentered_at)
 
 
 def recent_violation_count(submission, window_seconds=None, now=None):
@@ -118,7 +126,7 @@ def evaluate(submission):
     (lock / disqualify) when thresholds are crossed. Caller commits.
     """
     limit = max_violations_for(submission.exam)
-    severity = total_severity(submission)
+    severity = active_severity(submission)
     recent = recent_violation_count(submission)
     threshold = settings.get_int("risk_window_threshold")
 

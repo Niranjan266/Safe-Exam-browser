@@ -198,8 +198,28 @@ def test_replay_feed_has_cumulative_risk_and_review_page(app, client):
     feed = client.get(f"/api/submission/{sub_id}/replay").get_json()
     assert feed["violations"][0]["cum"] == 2
     page = client.get(f"/admin/exams/{exam_id}/review")
-    assert page.status_code == 200 and b"1 student need review" in page.data
+    assert page.status_code == 200 and b"1 student needs review" in page.data
     assert client.get(f"/admin/exams/{exam_id}/stats").status_code == 200
     assert client.get(f"/admin/submissions/{sub_id}").status_code == 200
     assert client.get(f"/admin/submissions/{sub_id}/replay").status_code == 200
     assert client.get("/admin/live-wall").status_code == 200
+
+
+def test_reentry_gives_a_fresh_violation_allowance(app, client):
+    admin_id = make_user(app, "adm", "secret1", ROLE_ADMIN)
+    exam_id = make_exam(app, admin_id)
+    sub_id = start(app, client, exam_id)
+    for _ in range(3):
+        r = client.post(f"/api/exam/{exam_id}/violation", json={"type": "Blocked Key"})
+    assert r.get_json()["terminated"] is True
+
+    login(client, "adm", "secret1")
+    client.post(f"/admin/submissions/{sub_id}/reenter")
+    login(client, "stu", "secret1")
+    client.get(f"/exam/{exam_id}/start")
+    r = client.post(f"/api/exam/{exam_id}/violation", json={"type": "Blocked Key"})
+    body = r.get_json()
+    assert body["terminated"] is False and body["severity"] == 1
+    with app.app_context():
+        # The full history is kept for reports.
+        assert db.session.get(Submission, sub_id).violation_count == 4

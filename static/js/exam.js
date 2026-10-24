@@ -239,7 +239,10 @@
     }
     startBtn.disabled = true;
     // Called straight from the click so the browser accepts the request.
-    SEBSecurity.requestFullscreen().then(() => {
+    // Some embedded browsers never settle the promise; don't leave the
+    // candidate stuck behind a disabled button.
+    const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 4000));
+    Promise.race([SEBSecurity.requestFullscreen(), timeout]).then(() => {
       started = true;
       enterExam();
     }).catch(() => {

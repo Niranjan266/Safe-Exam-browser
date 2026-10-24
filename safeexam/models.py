@@ -310,6 +310,9 @@ class Submission(db.Model):
     last_heartbeat = db.Column(db.DateTime, nullable=True)
     # Seconds a proctor granted this candidate beyond the exam duration.
     extra_seconds = db.Column(db.Integer, default=0, nullable=False)
+    # Set when a proctor allows re-entry; violations before it no longer count
+    # towards the auto-lock (see proctoring.active_severity).
+    reentered_at = db.Column(db.DateTime, nullable=True)
     attempt_token = db.Column(db.String(64), default=lambda: secrets.token_hex(16))
 
     violations = db.relationship(
