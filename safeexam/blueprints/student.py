@@ -96,7 +96,7 @@ def start_exam(exam_id):
 @student_bp.route("/exam/<int:exam_id>/submit", methods=["POST"])
 @student_required
 def submit_exam(exam_id):
-    exam = db.session.get(Exam, exam_id) or abort(404)
+    db.session.get(Exam, exam_id) or abort(404)
     submission = get_active_submission(current_user.id, exam_id)
 
     if submission is None:
