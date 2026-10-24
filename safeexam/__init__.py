@@ -295,6 +295,10 @@ def _register_errorhandlers(app):
 
 
 def _register_context(app):
+    from .services import fmt_marks
+
+    app.jinja_env.filters["marks"] = fmt_marks
+
     @app.context_processor
     def inject_globals():
         from . import settings as settings_store

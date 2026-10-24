@@ -193,6 +193,8 @@ def exam_clone(exam_id):
         created_by=current_user.id,
         is_published=False,
         shuffle_questions=exam.shuffle_questions,
+        negative_marking=exam.negative_marking, pool_size=exam.pool_size,
+        shuffle_options=exam.shuffle_options,
         require_webcam=exam.require_webcam,
         max_violations=exam.max_violations,
         pass_mark=exam.pass_mark, strictness=exam.strictness,
@@ -203,6 +205,8 @@ def exam_clone(exam_id):
         db.session.add(Question(
             exam_id=copy.id, text=q.text, option_a=q.option_a, option_b=q.option_b,
             option_c=q.option_c, option_d=q.option_d, correct_answer=q.correct_answer, order=q.order,
+            qtype=q.qtype, marks=q.marks, image_url=q.image_url,
+            numeric_answer=q.numeric_answer, tolerance=q.tolerance,
         ))
     db.session.commit()
     log_action("exam.clone", target=copy.id, detail=f"from {exam.id}")
@@ -236,7 +240,7 @@ def questions(exam_id):
             .filter_by(exam_id=exam.id).scalar() + 1
         )
         q = Question(exam_id=exam.id, order=next_order)
-        form.populate_obj(q)
+        form.apply_to(q)
         db.session.add(q)
         db.session.commit()
         log_action("question.create", target=q.id, detail=f"exam {exam.id}")
@@ -284,8 +288,10 @@ def questions_import(exam_id):
 def question_edit(q_id):
     q = db.session.get(Question, q_id) or abort(404)
     form = QuestionForm(obj=q)
+    if request.method == "GET":
+        form.load_from(q)
     if form.validate_on_submit():
-        form.populate_obj(q)
+        form.apply_to(q)
         db.session.commit()
         log_action("question.update", target=q.id)
         flash("Question updated.", "success")
@@ -787,7 +793,7 @@ def submission_score(sub_id):
     sub = db.session.get(Submission, sub_id) or abort(404)
     total = sub.total or sub.exam.question_count
     try:
-        new_score = int(request.form.get("score", ""))
+        new_score = float(request.form.get("score", ""))
     except ValueError:
         flash("Invalid score.", "danger")
         return _redirect_back()

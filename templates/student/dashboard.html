@@ -20,7 +20,7 @@
         <span>{{ icon('list') }} {{ c.exam.question_count }} questions</span>
       </div>
       {% if c.completed %}
-        <a class="btn btn-ghost btn-block" href="{{ url_for('student.result', exam_id=c.exam.id) }}">{{ icon('award') }} Result · {{ c.completed.score }}/{{ c.completed.total }}</a>
+        <a class="btn btn-ghost btn-block" href="{{ url_for('student.result', exam_id=c.exam.id) }}">{{ icon('award') }} Result · {{ c.completed.score|marks }}/{{ c.completed.total|marks }}</a>
       {% elif c.available %}
         <a class="btn btn-block" href="{{ url_for('student.start_exam', exam_id=c.exam.id) }}">{{ icon('play') }} {{ 'Resume exam' if c.in_progress else 'Start exam' }}</a>
       {% else %}

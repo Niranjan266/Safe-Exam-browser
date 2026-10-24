@@ -173,6 +173,14 @@ class Exam(db.Model):
     pass_mark = db.Column(db.Integer, nullable=True)
     # Violation weighting preset: relaxed / standard / strict (see proctoring.py)
     strictness = db.Column(db.String(10), default="standard", nullable=True)
+    # Fraction of a question's marks deducted for a wrong, non-blank answer (0 = off).
+    negative_marking = db.Column(db.Float, default=0, nullable=False)
+    # Question pool: each attempt draws this many random questions (0 = all).
+    pool_size = db.Column(db.Integer, default=0, nullable=False)
+    # Give every student their own, stable ordering of the answer options.
+    shuffle_options = db.Column(db.Boolean, default=False, nullable=False)
+    # Once true the student result page shows the full per-question review.
+    results_released = db.Column(db.Boolean, default=False, nullable=False)
 
     questions = db.relationship(
         "Question",
@@ -224,20 +232,56 @@ class Question(db.Model):
     option_b = db.Column(db.String(300), nullable=False)
     option_c = db.Column(db.String(300), nullable=False)
     option_d = db.Column(db.String(300), nullable=False)
-    correct_answer = db.Column(db.String(1), nullable=False)  # 'A'..'D'
+    # single: 'A'..'D'; multiple: the correct letters e.g. 'AC'; truefalse: 'A' (True) / 'B' (False)
+    correct_answer = db.Column(db.String(8), nullable=False)
     order = db.Column(db.Integer, default=0)
+    # single | multiple | truefalse | numeric  (NULL = single, for older rows)
+    qtype = db.Column(db.String(12), default="single", nullable=True)
+    marks = db.Column(db.Float, default=1.0, nullable=False)
+    image_url = db.Column(db.String(500), nullable=True)
+    numeric_answer = db.Column(db.Float, nullable=True)
+    tolerance = db.Column(db.Float, nullable=True)
 
     answers = db.relationship(
         "Answer", backref="question", lazy=True, cascade="all, delete-orphan"
     )
 
+    @property
+    def kind(self):
+        return self.qtype or "single"
+
+    @property
+    def weight(self):
+        return 1.0 if self.marks is None else float(self.marks)
+
     def options(self):
-        return [
+        opts = [
             ("A", self.option_a),
             ("B", self.option_b),
             ("C", self.option_c),
             ("D", self.option_d),
         ]
+        if self.kind == "truefalse":
+            return opts[:2]
+        return opts
+
+    def display_answer(self, selected):
+        """Readable text for a stored answer (option text, or the number)."""
+        if not selected:
+            return "No answer"
+        if self.kind == "numeric":
+            return selected
+        labels = dict(self.options())
+        return "; ".join(labels.get(k, k) for k in selected)
+
+    def correct_display(self):
+        """Human-readable correct answer."""
+        if self.kind == "numeric":
+            if self.numeric_answer is None:
+                return "-"
+            tol = f" (±{self.tolerance:g})" if self.tolerance else ""
+            return f"{self.numeric_answer:g}{tol}"
+        return self.display_answer(self.correct_answer)
 
     def __repr__(self):
         return f"<Question {self.id} exam={self.exam_id}>"
@@ -252,8 +296,8 @@ class Submission(db.Model):
     student_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
     exam_id = db.Column(db.Integer, db.ForeignKey("exams.id"), nullable=False)
 
-    score = db.Column(db.Integer, nullable=True)
-    total = db.Column(db.Integer, nullable=True)
+    score = db.Column(db.Float, nullable=True)   # marks obtained
+    total = db.Column(db.Float, nullable=True)   # marks available for the drawn questions
 
     started_at = db.Column(db.DateTime, default=utcnow)
     completed_at = db.Column(db.DateTime, nullable=True)
@@ -325,7 +369,8 @@ class Answer(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     submission_id = db.Column(db.Integer, db.ForeignKey("submissions.id"), nullable=False)
     question_id = db.Column(db.Integer, db.ForeignKey("questions.id"), nullable=False)
-    selected = db.Column(db.String(1), nullable=True)  # 'A'..'D' or None
+    # 'A'..'D', several letters ('AC') for multiple-correct, a number for numeric, or None
+    selected = db.Column(db.String(40), nullable=True)
 
     __table_args__ = (
         db.UniqueConstraint("submission_id", "question_id", name="uq_answer_per_question"),

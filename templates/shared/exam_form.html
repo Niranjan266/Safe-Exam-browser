@@ -29,6 +29,12 @@
       </div>
     </div>
     <div class="two-col">
+      <div class="form-group">{{ form.pool_size.label }} {{ form.pool_size() }}
+        {% for e in form.pool_size.errors %}<div class="field-error">{{ e }}</div>{% endfor %}</div>
+      <div class="form-group">{{ form.negative_marking.label }} {{ form.negative_marking(step="0.05", min="0", max="1") }}
+        {% for e in form.negative_marking.errors %}<div class="field-error">{{ e }}</div>{% endfor %}</div>
+    </div>
+    <div class="two-col">
       <div class="form-group">
         {{ form.max_violations.label }} {{ form.max_violations(placeholder="System default") }}
         <div class="helper-text">Leave blank to use the global limit ({{ policy.max_violations }}).</div>
@@ -41,6 +47,8 @@
       <div class="form-group">
         <label>Options</label>
         <div class="checkbox-row" style="margin-bottom:8px;">{{ form.shuffle_questions() }} {{ form.shuffle_questions.label }}</div>
+        <div class="checkbox-row" style="margin-bottom:8px;">{{ form.shuffle_options() }} {{ form.shuffle_options.label }}</div>
+        <div class="checkbox-row" style="margin-bottom:8px;">{{ form.results_released() }} {{ form.results_released.label }}</div>
         <div class="checkbox-row" style="margin-bottom:8px;">{{ form.require_webcam() }} {{ form.require_webcam.label }}</div>
         <div class="helper-text" style="margin:-4px 0 8px;">
           Off = the camera is never requested for this exam. Screen monitoring and

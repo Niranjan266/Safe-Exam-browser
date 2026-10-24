@@ -30,7 +30,7 @@
           <td>{{ sub.id }}</td>
           <td>{{ username }}</td>
           <td>{{ exam_title }}</td>
-          <td>{% if sub.score is not none %}{{ sub.score }}/{{ sub.total }}{% else %}<span class="muted">—</span>{% endif %}</td>
+          <td>{% if sub.score is not none %}{{ sub.score|marks }}/{{ sub.total|marks }}{% else %}<span class="muted">—</span>{% endif %}</td>
           <td class="status-{{ sub.status_label().split(' ')[0] }}">{{ sub.status_label() }}</td>
           <td>{{ sub.violation_count }}</td>
           <td class="muted">{{ sub.started_at.strftime('%Y-%m-%d %H:%M') if sub.started_at else '—' }}</td>

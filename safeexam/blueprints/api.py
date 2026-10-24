@@ -7,7 +7,7 @@ from sqlalchemy import func
 
 from ..extensions import db
 from ..models import Exam, Submission, Violation, User
-from ..services import get_active_submission, upsert_answer
+from ..services import get_active_submission, submission_questions, upsert_answer
 from ..audit import log_action
 from .. import proctoring
 from .. import framestore
@@ -86,7 +86,7 @@ def save_answer(exam_id):
         question_id = int(data.get("question_id"))
     except (TypeError, ValueError):
         return jsonify({"ok": False, "error": "bad question_id"}), 400
-    if question_id not in {q.id for q in sub.exam.questions}:
+    if question_id not in {q.id for q in submission_questions(sub)}:
         return jsonify({"ok": False, "error": "unknown question"}), 400
     upsert_answer(sub, question_id, data.get("selected"))
     db.session.commit()

@@ -65,13 +65,21 @@
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     {% for question in questions %}
     <div class="question-card">
-      <p class="q-text"><span class="q-index">{{ loop.index }}.</span>{{ question.text }}</p>
-      {% for value, label in question.options() %}
-      <label class="option-label {{ 'selected' if saved.get(question.id) == value }}">
-        <input type="radio" name="{{ question.id }}" value="{{ value }}" {{ 'checked' if saved.get(question.id) == value }}>
-        <span><strong>{{ value }}.</strong> {{ label }}</span>
+      <p class="q-text"><span class="q-index">{{ loop.index }}.</span>{{ question.text }}
+        {% if question.weight != 1 %}<span class="tag">[{{ question.weight|marks }} marks]</span>{% endif %}</p>
+      {% if question.image_url %}<img class="q-image" src="{{ question.image_url }}" alt="" style="max-width:100%;max-height:320px;margin:6px 0 10px;">{% endif %}
+      {% if question.kind == 'numeric' %}
+      <input type="text" inputmode="decimal" class="num-answer" name="{{ question.id }}" value="{{ saved.get(question.id) or '' }}" placeholder="Enter a number" autocomplete="off">
+      {% else %}
+      {% for value, label in option_keys[question.id] %}
+      {% set chosen = (value in (saved.get(question.id) or '')) if question.kind == 'multiple' else (saved.get(question.id) == value) %}
+      <label class="option-label {{ 'selected' if chosen }}">
+        <input type="{{ 'checkbox' if question.kind == 'multiple' else 'radio' }}" name="{{ question.id }}" value="{{ value }}" {{ 'checked' if chosen }}>
+        <span>{% if question.kind != 'truefalse' %}<strong>{{ 'ABCD'[loop.index0] }}.</strong> {% endif %}{{ label }}</span>
       </label>
       {% endfor %}
+      {% if question.kind == 'multiple' %}<p class="tag">Select all that apply.</p>{% endif %}
+      {% endif %}
     </div>
     {% endfor %}
 
