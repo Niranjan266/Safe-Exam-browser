@@ -30,6 +30,7 @@ from ..models import (
 from ..forms import ExamForm, QuestionForm, ImportQuestionsForm, ClassForm, UserForm
 from ..decorators import teacher_required
 from ..audit import log_action
+from .. import enrolment
 from .. import settings as settings_store
 
 teacher_bp = Blueprint("teacher", __name__, url_prefix="/teacher")
@@ -213,6 +214,44 @@ def class_delete(class_id):
     return redirect(url_for("teacher.classes"))
 
 
+def _enrolment_candidates(cls):
+    enrolled = {s.id for s in cls.students}
+    rows = User.query.filter_by(role=ROLE_STUDENT, active=True).order_by(User.username).all()
+    return [u for u in rows if u.id not in enrolled]
+
+
+@teacher_bp.route("/classes/<int:class_id>/students")
+@teacher_required
+def class_students(class_id):
+    cls = _own_class(class_id)
+    return render_template(
+        "shared/class_students.html", cls=cls,
+        roster=sorted(cls.students, key=lambda u: u.username.lower()),
+        candidates=_enrolment_candidates(cls),
+    )
+
+
+@teacher_bp.route("/classes/<int:class_id>/students/add", methods=["POST"])
+@teacher_required
+def class_students_add(class_id):
+    cls = _own_class(class_id)
+    ids = [int(v) for v in request.form.getlist("user_ids") if v.isdigit()]
+    added = enrolment.enrol(cls, ids)
+    log_action("class.enrol", target=cls.id, detail=f"{added} student(s)")
+    flash(f"Enrolled {added} student(s).", "success" if added else "info")
+    return redirect(url_for("teacher.class_students", class_id=cls.id))
+
+
+@teacher_bp.route("/classes/<int:class_id>/students/<int:user_id>/remove", methods=["POST"])
+@teacher_required
+def class_students_remove(class_id, user_id):
+    cls = _own_class(class_id)
+    if enrolment.unenrol(cls, user_id):
+        log_action("class.unenrol", target=cls.id, detail=str(user_id))
+        flash("Student removed from the class.", "info")
+    return redirect(url_for("teacher.class_students", class_id=cls.id))
+
+
 # ======================= Students =======================
 # A teacher manages the student logins they created — never teachers, admins
 # or students another staff member made.
@@ -239,7 +278,47 @@ def users():
         like = f"%{q}%"
         query = query.filter(db.or_(User.username.ilike(like), User.full_name.ilike(like), User.email.ilike(like)))
     people = query.order_by(User.created_at.desc()).all()
-    return render_template("shared/users.html", people=people, counts=None, q=q, role="")
+    return render_template(
+        "shared/users.html", people=people, counts=None, q=q, role="",
+        import_classes=_my_class_choices()[1:],
+    )
+
+
+@teacher_bp.route("/students/import", methods=["POST"])
+@teacher_required
+def users_import():
+    raw = enrolment.read_upload(request.files.get("csv_file"))
+    if raw is None:
+        flash("Choose a UTF-8 CSV file under 512 KB.", "danger")
+        return redirect(url_for("teacher.users"))
+    cls = None
+    class_id = request.form.get("class_id", type=int)
+    if class_id:
+        cls = _own_class(class_id)
+    summary, creds = enrolment.import_students(raw, current_user, cls)
+    log_action("user.import", detail=f"{summary['created']} created")
+    flash(
+        f"Imported {summary['created']} student(s); skipped {summary['duplicates']} "
+        f"duplicate(s) and {summary['invalid']} invalid row(s).",
+        "success" if summary["created"] else "warning",
+    )
+    if not creds:
+        return redirect(url_for("teacher.users"))
+    token = enrolment.stash_credentials(current_user.id, creds, cls.label if cls else "")
+    return redirect(url_for("teacher.users_credentials", token=token))
+
+
+@teacher_bp.route("/students/credentials/<token>")
+@teacher_required
+def users_credentials(token):
+    entry = enrolment.pop_credentials(token, current_user.id)
+    if entry is None:
+        flash("That credentials sheet has already been shown or has expired.", "warning")
+        return redirect(url_for("teacher.users"))
+    return render_template(
+        "shared/credentials.html", rows=entry["rows"], class_label=entry["class"],
+        back=url_for("teacher.users"),
+    )
 
 
 @teacher_bp.route("/students/new", methods=["GET", "POST"])

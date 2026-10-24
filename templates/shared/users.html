@@ -17,6 +17,20 @@
 {% endif %}
 
 <div class="card">
+  <div class="section-title">{{ icon('upload') }} Bulk import (CSV)</div>
+  <p class="card-sub">Columns: <code>username, full_name, email</code> and optionally <code>password</code> (header row optional). Missing passwords are generated.</p>
+  <form method="POST" action="{{ url_for(ns ~ '.users_import') }}" enctype="multipart/form-data" class="btn-row">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="file" name="csv_file" accept=".csv,text/csv,text/plain" required>
+    <select name="class_id">
+      <option value="0">Don't enrol in a class</option>
+      {% for cid, label in import_classes %}<option value="{{ cid }}">{{ label }}</option>{% endfor %}
+    </select>
+    <button type="submit">{{ icon('upload') }} Import students</button>
+  </form>
+</div>
+
+<div class="card">
   <div class="toolbar">
     <form method="GET">
       <div class="search">{{ icon('search') }}<input type="text" name="q" value="{{ q }}" placeholder="Search name, username or email"></div>

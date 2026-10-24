@@ -18,10 +18,20 @@ from ..timeutil import utcnow
 student_bp = Blueprint("student", __name__)
 
 
+def _may_take(exam):
+    """Exams with no class are open to everyone; class exams need enrolment."""
+    if exam.class_id is None:
+        return True
+    return any(c.id == exam.class_id for c in current_user.enrolled_classes)
+
+
 @student_bp.route("/student")
 @student_required
 def dashboard():
-    exams = Exam.query.filter_by(is_published=True).order_by(Exam.created_at.desc()).all()
+    exams = [
+        e for e in Exam.query.filter_by(is_published=True).order_by(Exam.created_at.desc()).all()
+        if _may_take(e)
+    ]
     now = utcnow()
 
     cards = []
@@ -44,6 +54,10 @@ def dashboard():
 @student_required
 def start_exam(exam_id):
     exam = db.session.get(Exam, exam_id) or abort(404)
+
+    if not _may_take(exam):
+        flash("This exam is for a class you are not enrolled in.", "warning")
+        return redirect(url_for("student.dashboard"))
 
     # Already finished? show the result.
     if get_completed_submission(current_user.id, exam_id):
