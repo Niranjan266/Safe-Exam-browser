@@ -59,6 +59,11 @@ class ExamForm(FlaskForm):
         "Pass mark % (blank = system default)",
         validators=[Optional(), NumberRange(min=0, max=100)],
     )
+    strictness = SelectField(
+        "Proctoring strictness",
+        choices=[("relaxed", "Relaxed"), ("standard", "Standard"), ("strict", "Strict")],
+        default="standard",
+    )
     shuffle_questions = BooleanField("Shuffle question order")
     require_webcam = BooleanField("Require webcam", default=True)
     is_published = BooleanField("Published (visible to students)")

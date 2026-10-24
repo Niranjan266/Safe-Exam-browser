@@ -221,6 +221,11 @@
   function beginExam() {
     if (started || !permsReady || !ticks.every((t) => t.checked)) return;
     clearGateError();
+    if (window.screen && window.screen.isExtended === true) {
+      gateError("A second display is connected. Disconnect the extra monitor, then press Start exam again.");
+      refreshStart();
+      return;
+    }
     startBtn.disabled = true;
     // Called straight from the click so the browser accepts the request.
     SEBSecurity.requestFullscreen().then(() => {
@@ -266,6 +271,10 @@
         if (typeof s.remaining === "number") SEBTimer.sync(s.remaining);
       },
     });
+
+    if (SEB.requireWebcam !== false && SEBMonitoring._camStream && window.SEBFaceCheck) {
+      SEBFaceCheck.start(SEBMonitoring._camStream, handleViolation);
+    }
 
     SEBTimer.start(SEB.secondsRemaining, timerEl, submitNow);
 

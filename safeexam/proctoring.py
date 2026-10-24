@@ -5,6 +5,7 @@ server-side rules that lock or disqualify an attempt.
 Keeping this in one place means the exam page, the API and the live monitor
 all agree on what "High Risk" or "Disqualified" means.
 """
+import math
 from datetime import timedelta
 
 from .extensions import db
@@ -34,11 +35,39 @@ VIOLATION_SEVERITY = {
     "Disconnected": 2,
     "Screen Share Denied": 2,
     "Screen Share Stopped": 2,
+    "Looking Away": 1,
+    "Multiple Monitors": 3,
+}
+
+# A focus loss straight after a long idle spell looks like "copy the question,
+# go and search for it", so it costs more than an ordinary blur.
+IDLE_FOCUS_SEVERITY = 3
+IDLE_DETAIL_PREFIX = "after idle"
+
+# Strictness presets: per-type multipliers applied on top of the base weights.
+# "standard" is empty so it keeps the weights above exactly.
+FOCUS_TYPES = ("Tab Switch", "Window Blur", "Exited Fullscreen")
+FACE_TYPES = ("Multiple Faces", "No Face Detected", "Looking Away")
+STRICTNESS_LEVELS = ("relaxed", "standard", "strict")
+STRICTNESS_MULTIPLIERS = {
+    "relaxed": {"Blocked Key": 0, "Window Resized": 0, "Right Click Attempt": 0,
+                **{t: 0.5 for t in FOCUS_TYPES}},
+    "standard": {},
+    "strict": {t: 2 for t in FOCUS_TYPES + FACE_TYPES},
 }
 
 
-def severity_for(violation_type):
-    return VIOLATION_SEVERITY.get(violation_type, 1)
+def severity_for(violation_type, exam=None, details=None):
+    """Weight of one violation, adjusted by the exam's strictness preset."""
+    base = VIOLATION_SEVERITY.get(violation_type, 1)
+    if (violation_type in ("Window Blur", "Tab Switch") and details
+            and str(details).startswith(IDLE_DETAIL_PREFIX)):
+        base = max(base, IDLE_FOCUS_SEVERITY)
+    level = getattr(exam, "strictness", None) or "standard"
+    mult = STRICTNESS_MULTIPLIERS.get(level, {}).get(violation_type)
+    if mult is None:
+        return base
+    return 0 if mult == 0 else max(1, math.ceil(base * mult))
 
 
 def max_violations_for(exam):
@@ -55,7 +84,7 @@ def record_violation(submission, violation_type, details=None):
         student_id=submission.student_id,
         exam_id=submission.exam_id,
         violation_type=violation_type,
-        severity=severity_for(violation_type),
+        severity=severity_for(violation_type, submission.exam, details),
         details=details,
         timestamp=utcnow(),
     )
@@ -65,7 +94,8 @@ def record_violation(submission, violation_type, details=None):
 
 
 def total_severity(submission):
-    return sum(severity_for(v.violation_type) for v in submission.violations)
+    return sum(severity_for(v.violation_type, submission.exam, v.details)
+               for v in submission.violations)
 
 
 def recent_violation_count(submission, window_seconds=None, now=None):

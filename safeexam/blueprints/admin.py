@@ -192,7 +192,7 @@ def exam_clone(exam_id):
         shuffle_questions=exam.shuffle_questions,
         require_webcam=exam.require_webcam,
         max_violations=exam.max_violations,
-        pass_mark=exam.pass_mark,
+        pass_mark=exam.pass_mark, strictness=exam.strictness,
     )
     db.session.add(copy)
     db.session.commit()

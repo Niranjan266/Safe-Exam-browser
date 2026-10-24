@@ -159,6 +159,8 @@ class Exam(db.Model):
     max_violations = db.Column(db.Integer, nullable=True)
     # Pass mark as a percentage (None = use global default pass mark)
     pass_mark = db.Column(db.Integer, nullable=True)
+    # Violation weighting preset: relaxed / standard / strict (see proctoring.py)
+    strictness = db.Column(db.String(10), default="standard", nullable=True)
 
     questions = db.relationship(
         "Question",

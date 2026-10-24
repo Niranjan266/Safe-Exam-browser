@@ -9,6 +9,8 @@
 (function (global) {
   "use strict";
 
+  const IDLE_SECONDS = 30;
+
   const SEBSecurity = {
     _onViolation: function () {},
     _enabled: false,
@@ -22,6 +24,7 @@
       // attempt the instant it opens.
       this._graceUntil = Date.now() + (opts.graceMs || 2500);
       this._fsChangedAt = 0;
+      this._lastActive = Date.now();
       this._bind();
       this._watchDevTools();
       return this;
@@ -30,6 +33,12 @@
     report(type, details) {
       if (!this._enabled) return;
       if (Date.now() < this._graceUntil) return;   // start-up noise, not misconduct
+      // Losing focus right after a long stretch with no mouse activity looks
+      // like "copy the question, go and search for it".
+      if (!details && (type === "Window Blur" || type === "Tab Switch")) {
+        const idle = Math.round((Date.now() - this._lastActive) / 1000);
+        if (idle >= IDLE_SECONDS) details = "after idle " + idle + "s";
+      }
       this._onViolation(type, details || null);
     },
 
@@ -50,6 +59,17 @@
 
     /* ---- Event binding ---- */
     _bind() {
+      const touch = () => { this._lastActive = Date.now(); };
+      ["mousemove", "mousedown", "touchstart"].forEach((ev) =>
+        document.addEventListener(ev, touch, { passive: true, capture: true }));
+
+      // Extra display attached mid-exam (where the Window Management API exists)
+      if (window.screen && "isExtended" in window.screen) {
+        window.screen.addEventListener("change", () => {
+          if (window.screen.isExtended === true) this.report("Multiple Monitors", "second display detected");
+        });
+      }
+
       // Tab / window focus loss
       document.addEventListener("visibilitychange", () => {
         if (document.hidden) this.report("Tab Switch");

@@ -35,6 +35,10 @@
         {% for e in form.max_violations.errors %}<div class="field-error">{{ e }}</div>{% endfor %}
       </div>
       <div class="form-group">
+        {{ form.strictness.label }} {{ form.strictness() }}
+        <div class="helper-text">Relaxed ignores stray keys and resizes; Strict doubles focus-loss and face events.</div>
+      </div>
+      <div class="form-group">
         <label>Options</label>
         <div class="checkbox-row" style="margin-bottom:8px;">{{ form.shuffle_questions() }} {{ form.shuffle_questions.label }}</div>
         <div class="checkbox-row" style="margin-bottom:8px;">{{ form.require_webcam() }} {{ form.require_webcam.label }}</div>
