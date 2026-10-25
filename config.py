@@ -108,6 +108,8 @@ class ProductionConfig(Config):
         os.environ.get("SEB_ALLOWED_HOSTS"),
         default=(
             "exam.niranjand.in",
+            "exam-browser.duckdns.org",
+            "www.exam-browser.duckdns.org",
             ".vercel.app",
             ".onrender.com",
             "localhost",
