@@ -1,215 +1,208 @@
-# 🛡️ SafeExam — Secure Online Examination Platform (Flask)
+# SafeExam
 
-SafeExam is an end-to-end **Safe Exam Browser** web application. It provides a
-locked-down, monitored environment for online multiple-choice exams: role-based
-access for admins/proctors and students, a full-screen exam runtime with
-real-time integrity monitoring, server-enforced timing, automatic violation
-handling, webcam-snapshot proctoring and exportable reports.
+**A proctored online exam platform built on the assumption that people will try to cheat.** The clock and the rules run on the server, and proctors can watch every candidate's screen and webcam live.
 
-> This project was rebuilt from a single-file Flask script into a clean,
-> testable application-factory + blueprints structure. The old files are kept
-> untouched in `legacy_flask_backup/`.
+[Live site](https://exam.niranjand.in/) · [Case study](https://www.niranjand.in/projects/safeexam) · [Deployment guide](DEPLOY.md)
+
+![SafeExam admin dashboard](docs/screenshots/dashboard.png)
 
 ---
 
-## ✨ Features
+## What it is
 
-**Authentication & roles**
-- Register / login / logout with hashed passwords (Werkzeug) and Flask-Login.
-- Three roles: **admin/proctor**, **teacher** and **student**, enforced by decorators.
-- CSRF protection on every form (Flask-WTF).
+Online exams are easy to game: switch to another tab, refresh the page to reset the timer, or tamper with the browser so warnings never fire. SafeExam is a web app for schools and colleges that runs multiple-choice exams in a locked-down, full-screen page and treats every one of those tricks as something to detect. The time left, the violation limit and the decision to lock someone out are all made by the server, not the browser. Teachers write exams, students take them, and proctors watch the live screens and review the evidence afterwards.
 
-**For admins / proctors**
-- **Dashboard** with KPIs and charts (submissions trend, violations by type).
-- **Exam authoring** — create, edit, publish/unpublish, **duplicate**, and delete exams;
-  optional **availability window**, per-exam **violation limit** and **pass mark**.
-- **Question management** — add / edit / delete MCQs, optional shuffle, and **bulk CSV import**.
-- **User management** — create users, reset passwords, change roles, activate/deactivate,
-  delete (with safeguards against locking yourself out or removing the last admin); search & filter.
-- **Settings** — globally tune the proctoring policy (violation limit, risk window,
-  snapshot interval, heartbeat timeout, default pass mark) from the UI.
-- **Live monitor** — real-time candidate status, violations, time remaining, snapshot
-  counts; lock / unlock / disqualify with one click.
-- **Live wall** — every in-progress candidate's screen as a self-refreshing grid,
-  with webcam inset, status, violation count and time left. Riskiest first. Click a
-  tile for the full-size view. Purely passive: it reads frames the exam page already
-  uploads, so the candidate is never notified and never interrupted.
-- **Live screen monitoring** — open any in-progress attempt and watch the candidate's
-  **shared screen and webcam in near real time** from the proctor panel (frames stream
-  every ~1.5s). Reachable from the monitor table ("Live") and the attempt detail page.
-- **Results & exam statistics** — average score, pass rate, score distribution and
-  per-question **item analysis** (correct-rate); search/filter; per-exam CSV export.
-- Per-attempt **review page** — answers vs. correct key, violation timeline, webcam
-  snapshots, and **manual score override**.
-- **Audit log** of proctor/admin actions.
-- Export **PDF** and **CSV** integrity reports.
-
-The interface uses a clean, professional design with an inline SVG icon set (no emoji)
-and renders fully offline — no external icon fonts or image requests.
-
-**For teachers**
-- Own portal at `/teacher` with a dashboard of their classes, exams and results.
-- **Classes** — create and maintain classes with class name, subject name,
-  subject code, section, academic year and description; exams can be linked to one.
-- **Exam authoring** — create, edit, publish, duplicate and delete their *own*
-  exams and questions (including CSV bulk import).
-- **Results** — scores, statistics, item analysis and CSV export for their own exams.
-- Deliberately **cannot** watch live screens, manage users, change settings, read
-  the audit log, or touch another teacher's exams or classes.
+## Features
 
 **For students**
-- Dashboard of available exams with status (open / scheduled / completed).
-- A "secure-mode" gate that requests full-screen + camera before starting.
-- Auto-saved answers, a live countdown, and a clear result screen.
+- A clear dashboard of open, scheduled and completed exams.
+- A secure-mode gate before the exam: share the whole screen, allow the camera, and read and tick each rule.
+- Answers save automatically, a live countdown shows the time left, and reopening the exam resumes the same attempt.
 
-**Safe-Exam lock-down (exam runtime)**
-- Full-screen enforcement; flags exit-fullscreen, tab switches and window blur.
-- Blocks copy / cut / paste, right-click, text selection and risky keyboard
-  shortcuts (Ctrl+C/V/X/S/P, F12, Ctrl+Shift+I/J/C, Ctrl+U).
-- Heuristic dev-tools detection.
-- **Server-enforced timing** — the clock is computed from the server; refreshing,
-  closing the tab or clock-tampering can't extend it.
-- **Server-side violation scoring** — weighted severities; the attempt is
-  auto-terminated when the limit is reached (not just client-side).
-- Heartbeat + state polling so a proctor's lock/disqualify takes effect live, and
-  disconnects are detected.
-- Periodic **webcam snapshots** uploaded for proctor review (configurable / optional).
+**During the exam**
+- Full-screen enforcement; leaving full screen, switching tabs and losing window focus are all recorded.
+- Copy, cut, paste, right-click, text selection and risky shortcuts (Ctrl+C/V/X/S/P, F12, Ctrl+Shift+I/J/C, Ctrl+U) are blocked and logged.
+- Heuristic developer-tools detection, second-monitor detection and an idle check (a focus loss straight after a long idle spell counts as more serious).
+- Local face checks on the webcam (no face, more than one face) that run entirely in the browser.
+- The candidate's screen and webcam stream to the proctor in near real time.
 
----
+**For proctors and admins**
+- **Live monitor**: every candidate's status, violations, time left and snapshots, with one-click lock, unlock, disqualify, extra time and re-entry.
+- **Live wall**: every in-progress candidate's screen in one grid with a webcam inset, riskiest first. It is purely passive, so the candidate is never interrupted.
+- **Flag a moment**: copies the current frame into a permanent evidence snapshot.
+- **Replay**: reconstructs a finished attempt on a scrubbable timeline.
+- **Results and statistics**: average score, pass rate, score distribution, per-question item analysis, manual score override, CSV and PDF evidence reports.
+- Exam authoring with availability windows, per-exam violation limits, pass marks, strictness presets, option shuffling and CSV question import.
+- User and class management, bulk student import with one-time credential sheets, global proctoring settings and an audit log of every staff action.
 
-## 🧱 Project structure
+**For teachers**
+- Their own portal for classes, exams, questions and results.
+- They only ever see their own work, and they cannot watch live screens, manage users, change settings or read the audit log.
+
+## Screenshots
+
+| | |
+|---|---|
+| ![Live monitor with candidate status and lock / disqualify actions](docs/screenshots/live-monitor.png) | ![Secure-mode gate shown before an exam starts](docs/screenshots/exam-gate.png) |
+| **Live monitor** — candidate status, violations and one-click actions | **Secure-mode gate** — screen share, camera and rules before the exam opens |
+| ![Exam list for an admin](docs/screenshots/exams.png) | ![Sign-in page](docs/screenshots/sign-in.png) |
+| **Exams** — publish, duplicate, statistics, review | **Sign in** |
+
+## How it works
+
+### Architecture
 
 ```
-Safe-Exam-browser/
-├── app.py                  # dev entry point  (python app.py)
-├── wsgi.py                 # production entry  (gunicorn wsgi:app)
-├── config.py               # env-driven configuration
-├── seed.py                 # demo data (accounts + sample exam)
-├── requirements.txt
-├── .env.example            # copy to .env and edit
-├── safeexam/               # application package
-│   ├── __init__.py         # application factory
-│   ├── extensions.py       # db, login_manager, csrf
-│   ├── models.py           # User, SchoolClass, Exam, Question, Submission, Answer,
-│   │                       #   Violation, ProctorSnapshot, LiveFrame, AppSetting, AuditLog
-│   ├── forms.py            # Flask-WTF forms
-│   ├── decorators.py       # admin_required / teacher_required / student_required
-│   ├── proctoring.py       # violation severity + risk/termination rules
-│   ├── framestore.py       # live frames + snapshots: disk or database backend
-│   ├── turso.py            # Turso/libSQL dialect for serverless deployments
-│   ├── services.py         # attempt lifecycle + grading
-│   └── blueprints/         # auth · student · teacher · admin · api
-├── api/index.py            # Vercel serverless entry point
-├── scripts/init_db.py      # create schema + seed (run once against Turso)
-├── vercel.json             # Vercel routing
-├── DEPLOY.md               # deployment guide (Vercel/Turso and normal servers)
-├── templates/              # Jinja2 (base, auth, student, teacher, admin, shared, errors)
-├── static/                 # style.css + js (timer, security, monitoring, exam, live_monitor)
-├── tests/                  # pytest suite
-└── instance/               # created at runtime: SQLite DB + uploaded snapshots
+  Candidate browser                         Flask app (application factory + blueprints)
+  ─────────────────                         ────────────────────────────────────────────
+  security.js   lock-down, violation  ──▶  api/        state · answer · heartbeat · violation
+  facecheck.js  local face checks             │          snapshot · live frame
+  monitoring.js screen + webcam frames ──▶     ▼
+  timer.js      countdown from server     proctoring.py  severity weights, risk window,
+                                                          lock / disqualify decisions
+                                          services.py    attempt lifecycle, grading
+                                          framestore.py  live frames + snapshots (disk or DB)
+                                          livehub.py     in-memory fan-out to watching proctors
+  Proctor browser                              │
+  ───────────────                              ▼
+  live_monitor.js  ◀── WebSocket (ws.py) or HTTP polling ──  SQLAlchemy ─▶ SQLite / Turso (libSQL)
+                                                                         / any SQLAlchemy URL
 ```
 
----
+Blueprints split the app by role: `auth`, `student`, `teacher`, `admin`, the JSON `api` used by the exam page and the monitor, and `ws` for live frames.
 
-## 🚀 Getting started
+### Notable engineering decisions
+
+**The server owns the clock.** An attempt's deadline is its server-recorded start time plus the exam length. Reopening the exam resumes the same attempt rather than starting a new one, so a refresh, a closed tab or a changed system clock cannot buy extra time. Every heartbeat from the exam page checks the deadline and grades the attempt as "Time expired" once it passes.
+
+**Cheating signals are weighed, not just counted.** Each violation type has a weight in `proctoring.py`: a stray key press or window blur costs 1, a tab switch or leaving full screen 2, suspected developer tools, a second monitor or multiple faces 3. The server adds them up against the exam's limit and locks and disqualifies the attempt itself, so a modified browser cannot ignore the result. A burst of violations inside a short window marks the candidate as High Risk on the monitor. Strictness presets (relaxed, standard, strict) apply per-type multipliers on top, and a proctor-approved re-entry starts the candidate on a fresh allowance while the reports keep the full history.
+
+**Flagged moments become evidence.** Live frames are overwritten by each new upload and deleted when the attempt is graded. When a proctor flags a moment, the current webcam frame (or the screen frame if the exam has no camera) is copied into a permanent snapshot, so it still appears in the PDF evidence report later.
+
+**Live view is pushed, with a fallback.** On a host that keeps a process running, frames arrive over a WebSocket and `livehub.py` hands each one to every watching proctor the moment it arrives, instead of stacking a capture interval on top of a polling interval. On serverless hosting the WebSocket routes are simply not registered and both sides fall back to HTTP polling. The hub is per-process state, so the Render config runs exactly one threaded gunicorn worker; scaling past one worker means moving the hub to Redis pub/sub, and `publish()` is the single place that would change.
+
+**Built to run on serverless hosting.** On Vercel the disk is read-only and the request that receives a frame may not be the one that serves it, so frames and snapshots are stored in a Turso (libSQL) database instead of on disk. The `libsql` driver lacks parts of the DB-API that SQLAlchemy's SQLite dialect calls on every connect, so `turso.py` adds a small dialect that fills those gaps.
+
+**Screen sharing is whole-screen or nothing.** Browsers always show their own picker before a page can capture the screen; no web page can skip it. SafeExam defaults the picker to the whole monitor, hides the exam tab from the list, disables switching mid-session, and rejects a single tab or window and asks again. The attempt does not open until a whole screen is shared. [DEPLOY.md](DEPLOY.md) covers removing the prompt on institution-managed machines.
+
+**Teachers only see their own work.** Every teacher route loads exams, questions and classes through ownership checks that return "not found" for anything another teacher created.
+
+### Security and privacy model
+
+- Passwords are hashed (Werkzeug); sessions use Flask-Login; every form has CSRF protection (Flask-WTF).
+- Face detection runs in the browser using the native `FaceDetector` where available, otherwise the MediaPipe face detector; webcam frames are not sent anywhere for analysis. If no detector is available it stays silent, because a missing detector is never a violation.
+- Bulk-imported student credentials are held in memory only, never written to the database, and handed out exactly once through a one-time link that expires after 15 minutes.
+- An optional Host allowlist (`SEB_ALLOWED_HOSTS`) and secure cookies for HTTPS deployments.
+- Every proctor and admin action (lock, extra time, re-entry, score override and so on) is written to the audit log.
+
+**Scope, stated plainly:** this is a web-based lock-down. It raises the cost of cheating and records a strong audit trail, but someone in full control of their own computer can still get around browser restrictions. Treat violations as signals for a proctor to review, not as proof, and pair it with a kiosk or native lock-down client for high-stakes exams.
+
+## Tech stack
+
+| Area | Choice |
+|---|---|
+| Backend | Python, Flask 3, Flask-SQLAlchemy, Flask-Login, Flask-WTF / WTForms |
+| Database | SQLite locally, Turso (libSQL) in production, or any SQLAlchemy URL (e.g. PostgreSQL) |
+| Live proctoring | flask-sock WebSockets with an HTTP polling fallback; in-memory fan-out hub |
+| Frontend | Jinja2 templates, vanilla JavaScript, CSS with an inline SVG icon set |
+| In-browser vision | native `FaceDetector` or MediaPipe Tasks Vision |
+| Reports | ReportLab (PDF), CSV |
+| Deployment | Vercel (serverless, polling), Render or any server with gunicorn (WebSockets) |
+| Tests | pytest |
+
+## Getting started
+
+### Windows, one click
+
+Double-click **`run.bat`**. On the first run it creates a virtual environment, installs the requirements, copies `.env.example` to `.env` and seeds the demo accounts; later runs just start the server and open the browser at `http://127.0.0.1:5001/`.
+
+### Any platform
 
 ```bash
-# 1. (recommended) create a virtual environment
 python -m venv venv
-venv\Scripts\activate          # Windows
-# source venv/bin/activate       # macOS/Linux
+venv\Scripts\activate            # Windows
+# source venv/bin/activate       # macOS / Linux
 
-# 2. install dependencies
 pip install -r requirements.txt
-
-# 3. (optional) configure environment
-copy .env.example .env           # Windows  (cp on macOS/Linux)
-#   then edit SEB_SECRET_KEY etc.
-
-# 4. seed demo accounts + a sample exam
-python seed.py
-
-# 5. run
+cp .env.example .env             # optional; edit SEB_SECRET_KEY etc.
+python seed.py                   # demo accounts + a sample exam
 python app.py
 ```
 
 Open **http://127.0.0.1:5001/**. Override with `SEB_PORT` / `SEB_HOST`.
 
-> **Upgrading from an earlier build?** The schema has grown (user activation,
-> pass marks, settings, audit log). On startup the app **auto-adds any missing
-> columns** to an existing SQLite database — just restart it, no data loss.
-> (If you'd rather start fresh, delete the `instance/` folder and re-run
-> `python seed.py`.)
+`seed.py` creates local demo accounts for each role (admin, teacher and student; the usernames and passwords are printed when it runs), a sample class and a published 5-question "Sample Aptitude Test". Sign in as the student to take it, then as the admin to watch the live monitor and export a report. **Change these credentials before exposing the app to anyone.**
 
-### Demo accounts (after `python seed.py`)
+Camera and screen capture only work in a secure context: HTTPS in production, or `http://localhost` / `127.0.0.1` during development.
 
-| Role    | Username  | Password     |
-|---------|-----------|--------------|
-| Admin   | `admin`   | `admin123`   |
-| Teacher | `teacher` | `teacher123` |
-| Student | `student` | `student123` |
+### Configuration
 
-> These are demo credentials. **Change them before exposing the app to anyone.**
-
-A published **"Sample Aptitude Test"** (5 questions) is created so you can try the
-full flow immediately: sign in as the student, take the exam, then sign in as the
-admin to watch the live monitor and export a report.
-
----
-
-## ⚙️ Configuration (environment variables)
+All settings are environment variables (see `.env.example`):
 
 | Variable | Default | Purpose |
-|----------|---------|---------|
+|---|---|---|
 | `SEB_SECRET_KEY` | dev key | **Set a long random value in production.** |
 | `SEB_ENV` | `development` | `development` · `production` · `testing` |
-| `SEB_DATABASE_URI` | local SQLite | Any SQLAlchemy URL (e.g. PostgreSQL). |
-| `SEB_MAX_VIOLATIONS` | `3` | Cumulative severity that terminates an attempt. |
-| `SEB_RISK_WINDOW_SECONDS` / `SEB_RISK_WINDOW_THRESHOLD` | `30` / `2` | "High-risk" burst detection. |
-| `SEB_SNAPSHOT_INTERVAL` | `20` | Seconds between webcam snapshots (`0` disables). |
-| `SEB_SECURE_COOKIES` | `0` | Set `1` when served over HTTPS. |
-| `SEB_TURSO_URL` | – | Turso/libSQL database URL (serverless deployments) |
-| `SEB_TURSO_TOKEN` | – | Turso auth token |
-| `SEB_FRAME_STORAGE` | `db` if Turso else `disk` | Where live frames + snapshots are stored |
-| `SEB_ALLOWED_HOSTS` | empty in dev | Comma-separated Host allowlist (empty = allow all) |
+| `SEB_DATABASE_URI` | local SQLite | Any SQLAlchemy URL |
+| `SEB_TURSO_URL` / `SEB_TURSO_TOKEN` | – | Turso / libSQL database; takes priority when both are set |
+| `SEB_FRAME_STORAGE` | `db` with Turso, else `disk` | Where live frames and snapshots are kept; must be `db` on serverless hosts |
+| `SEB_ALLOWED_HOSTS` | empty (allow all) | Comma-separated Host allowlist |
 | `SEB_INIT_DB` | `1` | Create tables on startup; set `0` in serverless production |
+| `SEB_SECURE_COOKIES` | `0` | Set `1` when served over HTTPS |
+| `SEB_MAX_VIOLATIONS` | `3` | Cumulative severity that terminates an attempt |
+| `SEB_RISK_WINDOW_SECONDS` / `SEB_RISK_WINDOW_THRESHOLD` | `30` / `2` | High-risk burst detection |
+| `SEB_SNAPSHOT_INTERVAL` | `20` | Seconds between webcam snapshots (`0` disables) |
+| `SEB_HEARTBEAT_TIMEOUT` | – | Heartbeat silence before a candidate counts as disconnected |
 | `SEB_HOST` / `SEB_PORT` | `127.0.0.1` / `5001` | Dev server bind address |
 
-See **[DEPLOY.md](DEPLOY.md)** for deploying to Vercel + Turso, or to a normal server.
+The proctoring values can also be changed at runtime from the admin **Settings** page.
 
----
-
-## ✅ Testing
+### Tests
 
 ```bash
 pip install pytest
 pytest
 ```
 
-The suite covers registration/login, role protection, the full exam flow and
-scoring, violation-limit disqualification, server-side time expiry, the state
-API and report generation.
+51 tests across 5 files cover login and registration, role-based access, a full exam scored end to end, disqualification at the violation limit, auto-completion of an expired attempt, PDF evidence reports, CSV exports, class enrolment and bulk import, proctor operations, violation signals and question handling, and teacher ownership of their own students and exams.
 
----
+### Deploying
 
-## 🚢 Production notes
+- **A normal server (recommended for real exams):** `gunicorn wsgi:app -w 1 -k gthread --threads 24 --timeout 300` behind HTTPS. `render.yaml` is a ready-made Render blueprint and explains each flag: one worker because the live hub is in memory, threaded because each open WebSocket holds a thread, and a long timeout so idle sockets are not killed mid-exam.
+- **Vercel + Turso:** `api/index.py` and `vercel.json`; create the schema once with `scripts/init_db.py`. Live view uses polling there.
+- `GET /healthz` reports which database the app is actually talking to.
 
-- Run behind a real WSGI server, e.g. `gunicorn "wsgi:app"` (Linux) or
-  `waitress-serve --call wsgi:create_app` (Windows), behind HTTPS.
-- Set `SEB_ENV=production`, a strong `SEB_SECRET_KEY`, and `SEB_SECURE_COOKIES=1`.
-- For multi-user/scale, point `SEB_DATABASE_URI` at PostgreSQL.
-- **Webcam + screen monitoring require a secure context.** Browsers only allow
-  camera and screen capture over **HTTPS** (or on `http://localhost` during
-  development). Serve the app over HTTPS in production so live monitoring works.
-- Live frames are stored under `instance/live/` (latest frame per attempt, overwritten);
-  recorded snapshots are kept under `instance/snapshots/`.
+Full steps are in **[DEPLOY.md](DEPLOY.md)**.
 
----
+## Project structure
 
-## ⚠️ Security scope (important)
+```
+app.py                  dev entry point (python app.py)
+wsgi.py                 production entry point (gunicorn wsgi:app)
+config.py               environment-driven configuration
+seed.py                 demo accounts, class and sample exam
+run.bat                 one-click Windows launcher
+render.yaml             Render blueprint (WebSockets)
+vercel.json, api/       Vercel serverless entry point
+scripts/init_db.py      create the schema + seed against Turso
+safeexam/
+  __init__.py           application factory, /healthz
+  models.py             User, SchoolClass, Exam, Question, Submission, Answer,
+                        Violation, ProctorSnapshot, LiveFrame, AppSetting, AuditLog
+  proctoring.py         violation weights, strictness presets, risk and termination rules
+  services.py           attempt lifecycle, grading, extra time, re-entry
+  framestore.py         live frames + snapshots on disk or in the database
+  livehub.py            in-memory fan-out of live frames to proctors
+  turso.py              libSQL dialect for SQLAlchemy
+  enrolment.py          classes, bulk import, one-time credential sheets
+  reports.py            PDF evidence reports
+  audit.py              staff action log
+  blueprints/           auth · student · teacher · admin · api · ws
+static/js/              security, facecheck, monitoring, timer, exam, live_monitor
+templates/              Jinja2: auth, student, teacher, admin, shared, errors
+tests/                  pytest suite
+```
 
-This is a **web-based** lock-down. It raises the cost of cheating and records a
-strong audit trail, but a determined user with OS-level control can still bypass
-browser restrictions. For high-stakes exams, pair it with a kiosk/native
-lock-down client and live human proctoring. Treat violation data as signals for
-review, not absolute proof.
+## Author
+
+Built by Niranjan D — [niranjand.in](https://www.niranjand.in) · [GitHub](https://github.com/Niranjan266) · [LinkedIn](https://www.linkedin.com/in/niranjan266)
